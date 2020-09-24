@@ -2,7 +2,7 @@
 Lightweight Compression Template Library (LCTL)
 
 ## First Steps
-Thing shall work.
+Things should work.
 
 ### Compilation
 cd path/to/LCTL
