@@ -33,7 +33,7 @@ size_t bp5bits(const uint8_t * & in, size_t size, uint8_t * & out) {
         Recursion<
             StaticTokenizer<1>,
             ParameterCalculator<>,
-            Encoder<Token, Int<5>>,
+            Encoder<Plus<Token,Int<128>>, Int<16>>,
             Combiner<Token>
         >
     > encode_staticbp5;

@@ -1,6 +1,7 @@
 #include "Utils.h"
 #include "algorithms/BP5Bits.h"
 
+
 using namespace std;
 
 int main(int argc, char ** argv) {
@@ -12,10 +13,11 @@ int main(int argc, char ** argv) {
     auto in = create_array<uint64_t>(size, distr);
     auto out = (uint8_t* ) malloc(size * sizeof(uint64_t) * 2);
     
-    print_array(size, in, ' ');
+    
     auto result = bp5bits<uint64_t>((const uint8_t * &) in, size, out);
+    print_array(size, in, ' ');
     std::cout << "\n";
-    print_bin((uint64_t *) out, 5,64,'\n');
+    print_bin((uint64_t *) out, 16,64,'\n');
 
     return 0;
 }

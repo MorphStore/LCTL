@@ -3,6 +3,7 @@
 
 #include "Encoder.h"
 #include "../lib/nodes/nodes.h"
+#include "../lib/definition.h"
 
 namespace LCTL {
 
@@ -34,7 +35,10 @@ namespace LCTL {
     template <> /* Specialization for WordBorder is <true> */
     template<typename base_t> /*apply function stays unspecialized */
     __attribute__ ((always_inline))  void
-    WordBorder<1>::apply(base_t * & outBase) { ++outBase; };
+    WordBorder<1>::apply(base_t * & outBase) { 
+        ++outBase; 
+        if (verbose) std::cout << "++outBase;";
+    };
     /**
      * A structure that writes the next bitstring at the correct position
      * in the compressed output vector. If the bitstring exceeds the
@@ -57,6 +61,20 @@ namespace LCTL {
         static __attribute__ ((always_inline))  void
         apply(const base_t* & inBase, base_t * & outBase) {
             *outBase |= *inBase << bitposition;
+            if (verbose) std::cout << "*outBase |= *inBase << "<< bitposition << ";\n";
+        };
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        apply(const base_t inBase, base_t * & outBase) {
+            *outBase |= inBase << bitposition;
+            if (verbose) std::cout << "*outBase |= PREPROCESS(*inBase) << "<< bitposition << ";\n";
+        };
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        applypreprocessspan(const base_t inBase, base_t * & outBase) {
+            *(outBase+1) = inBase;
+            *outBase |= *(outBase+1) << bitposition;
+            if (verbose) std::cout << "*(outBase+1) = PREPROCESS(inBase);\n*outBase |= *(outBase+1) << "<< bitposition << ";\n";
         };
     };
     /**
@@ -64,11 +82,36 @@ namespace LCTL {
      * that the bitstring starts at a word border and has not to be leftshifted.
      * @param outBase ptr to output vector
      */
-    template <> /* Specialization for WordBorder is <true> */
-    template<typename base_t>
-    __attribute__ ((always_inline))  void
-    WriteFirstPart<0>::apply(const base_t* & inBase, base_t * & outBase) {
-        *outBase = *inBase;
+    template<>
+    struct WriteFirstPart<0> {
+        /**
+         * A function, that expandss the compressed output vetor by the given
+         * leftshifted input value
+         * @tparam base_t datatype of uncompressed input and 
+         *         compressed output array
+         * @param inBase ptr to input vector
+         * @param outBase ptr to output vector
+         * @todo logical encoding cannot be done at the moment 
+         */
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        apply(const base_t * & inBase, base_t * & outBase) {
+            *outBase = *inBase;
+            if (verbose) std::cout << "*outBase = * inBase;\n";
+        };
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        apply(const base_t inBase, base_t * & outBase) {
+            *outBase |= inBase;
+            if (verbose) std::cout << "*outBase |= PREPROCESS(*inBase);\n";
+        };
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        applypreprocessspan(const base_t inBase, base_t * & outBase) {
+            *(outBase+1) = inBase;
+            *outBase |= *(outBase+1);
+            if (verbose) std::cout << "*(outBase+1) = PREPROCESS(inBase);\n*outBase |= *(outBase+1);\n";
+        };
     };
     /**
      * A structure that writes the rest of a spanword bitstring to the second
@@ -82,27 +125,118 @@ namespace LCTL {
         apply(const base_t* & inBase, base_t * & outBase){
             ++outBase;
             *outBase = *inBase >> numbits;
+            if (verbose) std::cout << "++outBase;\n*outBase = *inBase >> " << numbits << ";\n";
         };
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        apply(const base_t inBase, base_t * & outBase) {
+            ++outBase;
+            *outBase |= inBase >> numbits;
+            if (verbose) std::cout << "++outBase;\n*outBase |= PREPROCESS(*inBase) >> "<< numbits << ";\n";
+        };
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        applypreprocessspan(const base_t inBase, base_t * & outBase) {
+            ++outBase;
+            *outBase |= *outBase >> numbits;
+            if (verbose) std::cout << "++outBase;\n*outBase |= *outBase >> " << numbits << ";\n";
+        }
     };
     /**
      * Specialization of WriteSecondPart if bitstring is not a spanword
      */
-    template<>
-    template<typename base_t>
-    __attribute__ ((always_inline)) void
-    WriteSecondPart<0>::apply(const base_t* & inBase, base_t * & outBase) {};
+        template<>
+    struct WriteSecondPart<0> {
+        template<typename base_t>
+        static __attribute__ ((always_inline))  void
+        apply(const base_t* & inBase, base_t * & outBase){};
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        apply(const base_t inBase, base_t * & outBase) {};
+        template <typename base_t>
+        static __attribute__ ((always_inline))  void
+        applypreprocessspan(const base_t inBase, base_t * & outBase) {}
+    };
 
     
-    template<size_t bitposition, size_t secondpart>
-    struct WriteOne {
+    template<typename preprocess, size_t bitposition, size_t secondpart>
+    struct WriteOne{
         template<typename base_t>
         static __attribute__ ((always_inline)) void
         apply(const base_t * & inBase, base_t * & outBase){
             
-            //std::cout << bitposition << " " << secondpart << "\n";
+            WriteFirstPart<bitposition>::applypreprocessspan(preprocess::apply(inBase), outBase);
+            WriteSecondPart<secondpart> ::applypreprocessspan(preprocess::apply(inBase), outBase);
+            ++inBase;
+            if (verbose) std::cout << "++inBase;\n";
+        };
+    };
+    
+    template<typename preprocess, size_t bitposition>
+    struct WriteOne<preprocess, bitposition, 0>{
+        template<typename base_t>
+        static __attribute__ ((always_inline)) void
+        apply(const base_t * & inBase, base_t * & outBase){
+            
+            WriteFirstPart<bitposition>::apply(preprocess::apply(inBase), outBase);
+            ++inBase;
+            if (verbose) std::cout << "++inBase;\n";
+        };
+    };
+    
+    template<size_t bitposition, size_t secondpart>
+    struct WriteOne<Token, bitposition, secondpart> {
+        template<typename base_t>
+        static __attribute__ ((always_inline)) void
+        apply(const base_t * & inBase, base_t * & outBase){
             WriteFirstPart<bitposition>::apply(inBase, outBase);
             WriteSecondPart<secondpart> ::apply(inBase, outBase);
             ++inBase;
+            if (verbose) std::cout << "++inBase;\n";
+        };
+    };
+        
+    
+    
+    /**
+     * Writes all Bitstrings at the correct output word and bitposition. 
+     * @tparam List, each two values belong togehter. First value is bitposition,
+     *         second value indicats, if we need to write a rest in a second word
+     *         and where
+     *         Example List: 0, 0, 5, 0, 10, 0, ..., 55, 0, 60, 4, 1, 0,... 
+     *         Leads to:     0, 0 -> *outBase =*inBase;     ++inBase;
+     *                       5, 0 -> *outBase|=*inBase<<5;  ++inBase;
+     *                      10, 0 -> *outBase|=*inBase<<10; ++inBase;
+     *                        ...
+     *                      55, 0 -> *outBase|=*inBase<<55; ++inBase;
+     *                      60, 4 -> *outBase|=*inBase<<60; ++outBase; *outBase =*inBase>>4; ++inBase;
+     *                       1, 0 -> *outBase|=*inBase<<1;  ++inBase;
+     */
+    template <typename preprocess, typename TList>
+    struct WriteAll{
+        template<typename base_t>
+        static __attribute__ ((always_inline))  
+	void apply(const base_t * & inBase, base_t * & outBase){
+            ++outBase;
+            if (verbose) std::cout << "++outBase;\n";
+        };
+    };
+    /**
+     *  Specialization of WriteAll for Lists with at least two UINT64 Values at the beginning
+     */
+    template<typename preprocess, uint64_t T1, uint64_t T2,typename ...Ts>
+    struct WriteAll<preprocess, List<UInt64<T1>, UInt64<T2>, Ts...>> {
+	/**
+         * Takes the two first list values as template arguments for the WriteOne struct
+         * to write only one bitsting. Does this recursively fror the rest of the list.
+         * Then we are at the end of the cycle (word border achieved) and increment outBase.
+         * @param inBase uncompressed input vector
+         * @param outBase compressed output vector
+         */
+        template<typename base_t>
+        static __attribute__ ((always_inline))  void apply(const base_t * & inBase, base_t * & outBase){
+            WriteOne<preprocess, T1, T2>::apply(inBase, outBase);
+            WriteAll<preprocess, List<Ts...>>::apply(inBase, outBase);
         };
     };
     
@@ -132,7 +266,7 @@ namespace LCTL {
             typename PushBack2<
                 InfoVector, 
                 UInt64<bitposition>,
-                UInt64<((uint64_t)(~(bitposition + encsize -wordsize)) >> 63) * (uint64_t)(wordsize - bitposition)>>::Type>{}; /* No conditional, such that Type is resolvable */
+                UInt64<((uint64_t)(bitposition + encsize - wordsize > 0)) * (uint64_t)(wordsize - bitposition)>>::Type>{};
     template<
         int wordsize, 
         int encsize, 
@@ -145,46 +279,6 @@ namespace LCTL {
         false,
         InfoVector> : InfoVector{};
 
-    
-    /**
-     * Writes all Bitstrings at the correct output word and bitposition. 
-     * @tparam List, each two values belong togehter. First value is bitposition,
-     *         second value indicats, if we need to write a rest in a second word
-     *         and where
-     *         Example List: 0, 0, 5, 0, 10, 0, ..., 55, 0, 60, 4, 1, 0,... 
-     *         Leads to:     0, 0 -> *outBase =*inBase;     ++inBase;
-     *                       5, 0 -> *outBase|=*inBase<<5;  ++inBase;
-     *                      10, 0 -> *outBase|=*inBase<<10; ++inBase;
-     *                        ...
-     *                      55, 0 -> *outBase|=*inBase<<55; ++inBase;
-     *                      60, 4 -> *outBase|=*inBase<<60; ++outBase; *outBase =*inBase>>4; ++inBase;
-     *                       1, 0 -> *outBase|=*inBase<<1;  ++inBase;
-     */
-    template <typename TList>
-    struct WriteAll{
-        template<typename base_t>
-        static __attribute__ ((always_inline))  
-	void apply(const base_t * & inBase, base_t * & outBase){};
-    };
-    /**
-     *  Specialization of WriteAll for Lists with at least two UINT64 Values at the beginning
-     */
-    template<uint64_t T1, uint64_t T2,typename ...Ts>
-    struct WriteAll<List<UInt64<T1>, UInt64<T2>, Ts...>> {
-	/**
-         * Takes the two first list values as template arguments for the WriteOne struct
-         * to write only one bitsting. Does this recursively fror the rest of the list.
-         * Then we are at the end of the cycle (word border achieved) and increment outBase.
-         * @param inBase uncompressed input vector
-         * @param outBase compressed output vector
-         */
-        template<typename base_t>
-        static __attribute__ ((always_inline))  void apply(const base_t * & inBase, base_t * & outBase){
-            WriteOne<T1, T2>::apply(inBase, outBase);
-            WriteAll<List<Ts...>>::apply(inBase, outBase);
-            ++outBase;
-        };
-    };
     
     template<class func_combine>
     struct Combiner {
@@ -228,7 +322,7 @@ namespace LCTL {
     tok_val,
     func_combine,
     enc_t, 
-    true,
+    true,       /* No further recursion, but an encoder */
     bitposition,
     length,
     passcounter> {
@@ -238,7 +332,7 @@ namespace LCTL {
                 base_t * & outBase) {
             
             using infoList = typename Cycle<sizeof(base_t)*8, length>::Type;
-            WriteAll<infoList>::apply(inBase, outBase);
+            WriteAll<typename enc_t::preprocess, infoList>::apply(inBase, outBase);
             return 0;
         };
     };
