@@ -144,7 +144,11 @@ struct testcaseCorrectness {
         std::cout << "\t\033[31m*** FAIL (Values) ***\033[0m\n";
 #       if LCTL_VERBOSETEST
           std::cout << "Binary Compressed Values (" << sizeCompressedInBytes << " Bytes) :\n";
-          print_bin(reinterpret_cast < compressedbase_t * > (compressedMemoryRegion), sizeCompressedInBytes / sizeof(compressedbase_t), sizeof(compressedbase_t) * 8);
+          print_bin(
+            reinterpret_cast < compressedbase_t * > (compressedMemoryRegion), 
+            sizeCompressedInBytes / sizeof(compressedbase_t), 
+            sizeof(compressedbase_t) * 8
+          );
           std::cout << "Binary Input Values and Decompressed Values\n";
           print_compare(
                   reinterpret_cast <const base_t * > (in),
