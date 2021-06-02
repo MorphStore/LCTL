@@ -43,12 +43,12 @@ namespace LCTL {
      * is the same as: processingstyle is scalar or base_t is not set or same as processingStyle::base_t
      */
     static_assert(
-        (1==1) == std::is_same<typename processingStyle::base_t, typename processingStyle::vector_t>::value || 
-        (1==1) == std::is_same<inputbase_t, NIL>::value ||
-        (1==1) == std::is_same<inputbase_t, typename processingStyle::base_t>::value
+        true == std::is_same<typename processingStyle::base_t, typename processingStyle::vector_t>::value || 
+        true == std::is_same<inputbase_t, NIL>::value ||
+        true == std::is_same<inputbase_t, typename processingStyle::base_t>::value
       );
     using base_t = typename std::conditional< 
-        (1==1) == std::is_same<inputbase_t,NIL>::value, 
+        true == std::is_same<inputbase_t,NIL>::value, 
         typename processingStyle::base_t, 
         inputbase_t
       >::type;

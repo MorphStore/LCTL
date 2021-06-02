@@ -279,6 +279,14 @@ std::string execCommand(const std::string cmd, int& out_exitStatus) {
     return result;
 }
 
+class warning : public std::exception{
+  public:
+    warning(const std::string& msg) {}
+    const char* what() { return msg.c_str(); } //message of warning
+  private:
+    std::string msg;
+};
+
 
 
 

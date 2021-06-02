@@ -38,7 +38,7 @@ using statbp =
 Algorithm <
   processingStyle_t,
   Recursion<
-    StaticTokenizer< sizeof(typename processingStyle_t::base_t) * 8 >,
+    StaticTokenizer< sizeof(typename processingStyle_t::base_t) * 8>,
     ParameterCalculator<>,
     Recursion<
       StaticTokenizer<1>,

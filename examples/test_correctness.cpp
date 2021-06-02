@@ -9,11 +9,25 @@
 using namespace std;
 using namespace LCTL;
 /*
- * Should we validate this testcase?
  * Tests for all algorithms result in a huge compile time to test all formats at once.
  * Thus, please decide, which function you want to validate.
+ * 
+ * Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
-#define CRITERION(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE == 8 && BITWIDTH >= 1 && BITWIDTH <= 64)
+#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 8 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <=64 && BITWIDTH >= 1 && BITWIDTH <= 64)
+/* 
+ * Dynamic Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and maximal bitwidth for datagenerator BITWIDTH
+ */
+#define CRITERION_DYNBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE == 8 && BITWIDTH >= 64 && BITWIDTH <= 64)
+/* 
+ * Static FOR with Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
+ * This does not work at the moment
+ */
+#define REF_STATFORSTATBP 2
+#define CRITERION_STATFORSTATBP(COMPRESSEDBASE, BASE, BITWIDTH, UPPER) (BASE == 0 && COMPRESSEDBASE == 16 && BITWIDTH >=2 && BITWIDTH <= 2 && UPPER - REF_STATFORSTATBP >= 0 )
+/*
+ * Dynamic Bitpackings
+ */
 
 /**
  * @brief Counts the number of applied correctness tests
@@ -35,7 +49,7 @@ unsigned numPassedTest = 0;
 /**
  *  @brief multiple of neccessary amount of data
  */
-const size_t countInLog = 1;
+const size_t countInLog = 5;
 
 /**
  * @brief Generates test data, compresses and decompresses the data, and validates, if the decompression  results in the original test data
@@ -67,7 +81,7 @@ struct testcaseCorrectness {
   using base_t = typename format_t::base_t;
   using compressedbase_t = typename format_t::compressedbase_t;
   /**
-   * @brief Generates test data, compresses and decompresses the data, 
+   * @brief Generates test data, compresses and decompresses the data while measuring the times, 
    * and validates, if the decompression results in the original test data.
    * 
    * @date: 25.05.2021 12:00
@@ -86,7 +100,7 @@ struct testcaseCorrectness {
       typeString.at( * typeid(compressedbase_t).name()) <<
       ")\n" << 
       "  Number of Values:     " <<  countInLog_t << 
-      "\n  Maximal bitwidth:     " << ceil(log(upper_t+1)/log(2)) <<
+      "\n  Maximal bitwidth:     " << 64 - __builtin_clzl(upper_t) <<
       std::endl;
     /* new data distribution and generation of a data array */
     std::uniform_int_distribution < base_t > distr((base_t) lower_t, (base_t) upper_t);
@@ -103,23 +117,23 @@ struct testcaseCorrectness {
     base_t * decompressedMemoryRegion = (base_t * ) malloc(countInLog_t * sizeof(base_t) * 2);
 
     struct timespec beginCompression, endCompression, beginDecompression, endDecompression; 
-    clock_gettime(CLOCK_REALTIME, &beginCompression);
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &beginCompression);
     /* data compression, size of compressed data is stored in bytes */
     size_t sizeCompressedInBytes = format_t::compress(
       reinterpret_cast < const uint8_t * > (in),
       countInLog_t,
       reinterpret_cast < uint8_t * & > (compressedMemoryRegion)
     );
-    clock_gettime(CLOCK_REALTIME, &endCompression);
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endCompression);
     long secondsCompression = endCompression.tv_sec - beginCompression.tv_sec;
     long nanosecondsCompression = endCompression.tv_nsec - beginCompression.tv_nsec;
     double elapsedCompression = secondsCompression + nanosecondsCompression*1e-9;
 
-    clock_gettime(CLOCK_REALTIME, &beginDecompression);
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &beginDecompression);
     /* data decompression, size of decompressed data is stored in bytes */
     size_t sizeDecompressedInBytes = format_t::decompress(reinterpret_cast <
       const uint8_t * > (compressedMemoryRegion), countInLog_t, reinterpret_cast < uint8_t * & > (decompressedMemoryRegion));
-    clock_gettime(CLOCK_REALTIME, &endDecompression);
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endDecompression);
     long secondsDecompression = endDecompression.tv_sec - beginDecompression.tv_sec;
     long nanosecondsDecompression = endDecompression.tv_nsec - beginDecompression.tv_nsec;
     double elapsedDecompression = secondsDecompression + nanosecondsDecompression*1e-9;
@@ -133,35 +147,35 @@ struct testcaseCorrectness {
       std::cout << "  Compressed Size:\t" << sizeCompressedInBytes << " Bytes\n";
       std::cout << "  Decompressed size:\t" << sizeDecompressedInBytes << " Bytes\n";
       if (passed) std::cout << "\t\033[32m*** MATCH (Sizes) ***\033[0m\n";
-#   endif
-    if (!passed) std::cout << "\t\033[31m*** FAIL (Sizes) ***\033[0m\n";
-      
+#  endif
+    if (!passed) std::cout << "\t\033[31m*** FAIL (Sizes) ***\033[0m\n"; 
     /* test, if all corresponding uncompressed and decompressed values are equal*/
-    for (int i = 0; i < countInLog_t && i < sizeDecompressedInBytes && passed; i++) {
+    for (int i = 0; i < countInLog_t && i < sizeDecompressedInBytes; i++) {
       passed = passed && (reinterpret_cast < uint8_t * > (in)[i] == (reinterpret_cast < uint8_t * > (decompressedMemoryRegion))[i]);
-      /* if test failed, stop here and print differences red, break*/
+      /*if test failed, stop here and print differences red, break*/
       if (!passed) {
         std::cout << "\t\033[31m*** FAIL (Values) ***\033[0m\n";
-#       if LCTL_VERBOSETEST
-          std::cout << "Binary Compressed Values (" << sizeCompressedInBytes << " Bytes) :\n";
-          print_bin(
-            reinterpret_cast < compressedbase_t * > (compressedMemoryRegion), 
-            sizeCompressedInBytes / sizeof(compressedbase_t), 
-            sizeof(compressedbase_t) * 8
-          );
-          std::cout << "Binary Input Values and Decompressed Values\n";
-          print_compare(
-                  reinterpret_cast <const base_t * > (in),
-                  reinterpret_cast <const base_t * > (decompressedMemoryRegion),
-                  countInLog_t,
-                  sizeof(base_t) * 8);
-          break;
-#       endif
+        break;
       }
     }
-#     if LCTL_VERBOSETEST
-        if (passed) std::cout << "\t\033[32m*** MATCH (Values) ***\033[0m\n";
-#     endif
+
+#   if LCTL_VERBOSETEST
+      if (passed) std::cout << "\t\033[32m*** MATCH (Values) ***\033[0m\n";
+      else{ 
+        std::cout << "Binary Compressed Values (" << sizeCompressedInBytes << " Bytes) :\n";
+        print_bin(
+          reinterpret_cast < compressedbase_t * > (compressedMemoryRegion), 
+            sizeCompressedInBytes / sizeof(compressedbase_t),
+          sizeof(compressedbase_t) * 8
+        );
+        std::cout << "Binary Input Values and Decompressed Values\n";
+        print_compare(
+                reinterpret_cast <const base_t * > (in),
+                reinterpret_cast <const base_t * > (decompressedMemoryRegion),
+                countInLog_t,
+                sizeof(base_t) * 8);
+      }
+#   endif
       printf("  Compression time measured:   %.10lf\n",elapsedCompression);
       printf("  Decompression time measured: %.10lf\n\n",elapsedDecompression);
       
@@ -180,1641 +194,4371 @@ int main(int argc, char ** argv) {
    * We do this only in the case, a criterion is met (see beginning of this file)
    * This is not very elegant, but at least I'm sure, that no unneccessary format is created.
    */
-  #if CRITERION(8, 8, 1)
+# if CRITERION_STATICBP(8, 8, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 1 > >::apply();
-  #endif
-  #if CRITERION(8, 8, 2)
+# endif
+# if CRITERION_STATICBP(8, 8, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 2 > >::apply();
-  #endif
-  #if CRITERION(8, 8, 3)
+# endif
+# if CRITERION_STATICBP(8, 8, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 3 > >::apply();
-  #endif
-  #if CRITERION(8, 8, 4)
+# endif
+# if CRITERION_STATICBP(8, 8, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 4 > >::apply();
-  #endif
-  #if CRITERION(8, 8, 5)
+# endif
+# if CRITERION_STATICBP(8, 8, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 5 > >::apply();
-  #endif
-  #if CRITERION(8, 8, 6)
+# endif
+# if CRITERION_STATICBP(8, 8, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 6 > >::apply();
-  #endif
-  #if CRITERION(8, 8, 7)
+# endif
+# if CRITERION_STATICBP(8, 8, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 7 > >::apply();
-  #endif
-  #if CRITERION(8, 8, 8)
+# endif
+# if CRITERION_STATICBP(8, 8, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 8 > >::apply();
-  #endif
-  #if CRITERION(8, 16, 1)
+# endif
+# if CRITERION_STATICBP(8, 16, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 2)
+# endif
+# if CRITERION_STATICBP(8, 16, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 2, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 3)
+# endif
+# if CRITERION_STATICBP(8, 16, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 3, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 4)
+# endif
+# if CRITERION_STATICBP(8, 16, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 4, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 5)
+# endif
+# if CRITERION_STATICBP(8, 16, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 5, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 6)
+# endif
+# if CRITERION_STATICBP(8, 16, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 6, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 7)
+# endif
+# if CRITERION_STATICBP(8, 16, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 7, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 8)
+# endif
+# if CRITERION_STATICBP(8, 16, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 8, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 9)
+# endif
+# if CRITERION_STATICBP(8, 16, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 9, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 10)
+# endif
+# if CRITERION_STATICBP(8, 16, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 10, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 11)
+# endif
+# if CRITERION_STATICBP(8, 16, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 11, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 12)
+# endif
+# if CRITERION_STATICBP(8, 16, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 12, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 13)
+# endif
+# if CRITERION_STATICBP(8, 16, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 13, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 14)
+# endif
+# if CRITERION_STATICBP(8, 16, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 14, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 15)
+# endif
+# if CRITERION_STATICBP(8, 16, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 15, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 16, 16)
+# endif
+# if CRITERION_STATICBP(8, 16, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 16, uint16_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 1)
+# endif
+# if CRITERION_STATICBP(8, 32, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 2)
+# endif
+# if CRITERION_STATICBP(8, 32, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 2, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 3)
+# endif
+# if CRITERION_STATICBP(8, 32, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 3, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 4)
+# endif
+# if CRITERION_STATICBP(8, 32, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 4, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 5)
+# endif
+# if CRITERION_STATICBP(8, 32, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 5, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 6)
+# endif
+# if CRITERION_STATICBP(8, 32, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 6, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 7)
+# endif
+# if CRITERION_STATICBP(8, 32, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 7, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 8)
+# endif
+# if CRITERION_STATICBP(8, 32, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 8, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 9)
+# endif
+# if CRITERION_STATICBP(8, 32, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 9, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 10)
+# endif
+# if CRITERION_STATICBP(8, 32, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 10, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 11)
+# endif
+# if CRITERION_STATICBP(8, 32, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 11, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 12)
+# endif
+# if CRITERION_STATICBP(8, 32, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 12, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 13)
+# endif
+# if CRITERION_STATICBP(8, 32, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 13, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 14)
+# endif
+# if CRITERION_STATICBP(8, 32, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 14, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 15)
+# endif
+# if CRITERION_STATICBP(8, 32, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 15, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 16)
+# endif
+# if CRITERION_STATICBP(8, 32, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 16, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 17)
+# endif
+# if CRITERION_STATICBP(8, 32, 17)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 17, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 18)
+# endif
+# if CRITERION_STATICBP(8, 32, 18)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 18, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 19)
+# endif
+# if CRITERION_STATICBP(8, 32, 19)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 19, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 20)
+# endif
+# if CRITERION_STATICBP(8, 32, 20)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 20, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 21)
+# endif
+# if CRITERION_STATICBP(8, 32, 21)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 21, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 22)
+# endif
+# if CRITERION_STATICBP(8, 32, 22)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 22, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 23)
+# endif
+# if CRITERION_STATICBP(8, 32, 23)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 23, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 24)
+# endif
+# if CRITERION_STATICBP(8, 32, 24)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 24, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 25)
+# endif
+# if CRITERION_STATICBP(8, 32, 25)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 25, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 26)
+# endif
+# if CRITERION_STATICBP(8, 32, 26)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 26, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 27)
+# endif
+# if CRITERION_STATICBP(8, 32, 27)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 27, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 28)
+# endif
+# if CRITERION_STATICBP(8, 32, 28)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 28, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 29)
+# endif
+# if CRITERION_STATICBP(8, 32, 29)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 29, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 30)
+# endif
+# if CRITERION_STATICBP(8, 32, 30)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 30, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 31)
+# endif
+# if CRITERION_STATICBP(8, 32, 31)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 31, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 32, 32)
+# endif
+# if CRITERION_STATICBP(8, 32, 32)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 32, uint32_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 1)
+# endif
+# if CRITERION_STATICBP(8, 64, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 2)
+# endif
+# if CRITERION_STATICBP(8, 64, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 2, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 3)
+# endif
+# if CRITERION_STATICBP(8, 64, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 3, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 4)
+# endif
+# if CRITERION_STATICBP(8, 64, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 4, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 5)
+# endif
+# if CRITERION_STATICBP(8, 64, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 5, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 6)
+# endif
+# if CRITERION_STATICBP(8, 64, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 6, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 7)
+# endif
+# if CRITERION_STATICBP(8, 64, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 7, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 8)
+# endif
+# if CRITERION_STATICBP(8, 64, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 8, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 9)
+# endif
+# if CRITERION_STATICBP(8, 64, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 9, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 10)
+# endif
+# if CRITERION_STATICBP(8, 64, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 10, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 11)
+# endif
+# if CRITERION_STATICBP(8, 64, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 11, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 12)
+# endif
+# if CRITERION_STATICBP(8, 64, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 12, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 13)
+# endif
+# if CRITERION_STATICBP(8, 64, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 13, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 14)
+# endif
+# if CRITERION_STATICBP(8, 64, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 14, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 15)
+# endif
+# if CRITERION_STATICBP(8, 64, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 15, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 16)
+# endif
+# if CRITERION_STATICBP(8, 64, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 16, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 17)
+# endif
+# if CRITERION_STATICBP(8, 64, 17)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 17, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 18)
+# endif
+# if CRITERION_STATICBP(8, 64, 18)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 18, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 19)
+# endif
+# if CRITERION_STATICBP(8, 64, 19)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 19, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 20)
+# endif
+# if CRITERION_STATICBP(8, 64, 20)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 20, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 21)
+# endif
+# if CRITERION_STATICBP(8, 64, 21)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 21, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 22)
+# endif
+# if CRITERION_STATICBP(8, 64, 22)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 22, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 23)
+# endif
+# if CRITERION_STATICBP(8, 64, 23)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 23, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 24)
+# endif
+# if CRITERION_STATICBP(8, 64, 24)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 24, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 25)
+# endif
+# if CRITERION_STATICBP(8, 64, 25)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 25, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 26)
+# endif
+# if CRITERION_STATICBP(8, 64, 26)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 26, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 27)
+# endif
+# if CRITERION_STATICBP(8, 64, 27)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 27, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 28)
+# endif
+# if CRITERION_STATICBP(8, 64, 28)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 28, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 29)
+# endif
+# if CRITERION_STATICBP(8, 64, 29)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 29, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 30)
+# endif
+# if CRITERION_STATICBP(8, 64, 30)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 30, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 31)
+# endif
+# if CRITERION_STATICBP(8, 64, 31)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 31, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 32)
+# endif
+# if CRITERION_STATICBP(8, 64, 32)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 32, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 33)
+# endif
+# if CRITERION_STATICBP(8, 64, 33)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 33, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 34)
+# endif
+# if CRITERION_STATICBP(8, 64, 34)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 34, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 35)
+# endif
+# if CRITERION_STATICBP(8, 64, 35)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 35, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 36)
+# endif
+# if CRITERION_STATICBP(8, 64, 36)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 36, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 37)
+# endif
+# if CRITERION_STATICBP(8, 64, 37)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 37, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 38)
+# endif
+# if CRITERION_STATICBP(8, 64, 38)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 38, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 39)
+# endif
+# if CRITERION_STATICBP(8, 64, 39)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 39, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 40)
+# endif
+# if CRITERION_STATICBP(8, 64, 40)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 40, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 41)
+# endif
+# if CRITERION_STATICBP(8, 64, 41)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 41, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 42)
+# endif
+# if CRITERION_STATICBP(8, 64, 42)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 42, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 43)
+# endif
+# if CRITERION_STATICBP(8, 64, 43)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 43, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 44)
+# endif
+# if CRITERION_STATICBP(8, 64, 44)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 44, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 45)
+# endif
+# if CRITERION_STATICBP(8, 64, 45)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 45, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 46)
+# endif
+# if CRITERION_STATICBP(8, 64, 46)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 46, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 47)
+# endif
+# if CRITERION_STATICBP(8, 64, 47)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 47, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 48)
+# endif
+# if CRITERION_STATICBP(8, 64, 48)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 48, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 49)
+# endif
+# if CRITERION_STATICBP(8, 64, 49)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 49, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 50)
+# endif
+# if CRITERION_STATICBP(8, 64, 50)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 50, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 51)
+# endif
+# if CRITERION_STATICBP(8, 64, 51)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 51, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 52)
+# endif
+# if CRITERION_STATICBP(8, 64, 52)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 52, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 53)
+# endif
+# if CRITERION_STATICBP(8, 64, 53)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 53, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 54)
+# endif
+# if CRITERION_STATICBP(8, 64, 54)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 54, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 55)
+# endif
+# if CRITERION_STATICBP(8, 64, 55)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 55, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 56)
+# endif
+# if CRITERION_STATICBP(8, 64, 56)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 56, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 57)
+# endif
+# if CRITERION_STATICBP(8, 64, 57)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 57, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 58)
+# endif
+# if CRITERION_STATICBP(8, 64, 58)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 58, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 59)
+# endif
+# if CRITERION_STATICBP(8, 64, 59)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 59, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 60)
+# endif
+# if CRITERION_STATICBP(8, 64, 60)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 60, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 61)
+# endif
+# if CRITERION_STATICBP(8, 64, 61)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 61, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 62)
+# endif
+# if CRITERION_STATICBP(8, 64, 62)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 62, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 63)
+# endif
+# if CRITERION_STATICBP(8, 64, 63)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 63, uint64_t > >::apply();
-  #endif
-  #if CRITERION(8, 64, 64)
+# endif
+# if CRITERION_STATICBP(8, 64, 64)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statbp <scalar<v8<uint8_t>>, 64, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 8, 1)
+# endif
+# if CRITERION_STATICBP(16, 8, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
-  #endif
-  #if CRITERION(16, 8, 2)
+# endif
+# if CRITERION_STATICBP(16, 8, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 2, uint8_t > >::apply();
-  #endif
-  #if CRITERION(16, 8, 3)
+# endif
+# if CRITERION_STATICBP(16, 8, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 3, uint8_t > >::apply();
-  #endif
-  #if CRITERION(16, 8, 4)
+# endif
+# if CRITERION_STATICBP(16, 8, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 4, uint8_t > >::apply();
-  #endif
-  #if CRITERION(16, 8, 5)
+# endif
+# if CRITERION_STATICBP(16, 8, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 5, uint8_t > >::apply();
-  #endif
-  #if CRITERION(16, 8, 6)
+# endif
+# if CRITERION_STATICBP(16, 8, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 6, uint8_t > >::apply();
-  #endif
-  #if CRITERION(16, 8, 7)
+# endif
+# if CRITERION_STATICBP(16, 8, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 7, uint8_t > >::apply();
-  #endif
-  #if CRITERION(16, 8, 8)
+# endif
+# if CRITERION_STATICBP(16, 8, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 8, uint8_t > >::apply();
-  #endif
-  #if CRITERION(16, 16, 1)
+# endif
+# if CRITERION_STATICBP(16, 16, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 1 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 2)
+# endif
+# if CRITERION_STATICBP(16, 16, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 2 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 3)
+# endif
+# if CRITERION_STATICBP(16, 16, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 3 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 4)
+# endif
+# if CRITERION_STATICBP(16, 16, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 4 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 5)
+# endif
+# if CRITERION_STATICBP(16, 16, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 5 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 6)
+# endif
+# if CRITERION_STATICBP(16, 16, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 6 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 7)
+# endif
+# if CRITERION_STATICBP(16, 16, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 7 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 8)
+# endif
+# if CRITERION_STATICBP(16, 16, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 8 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 9)
+# endif
+# if CRITERION_STATICBP(16, 16, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 9 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 10)
+# endif
+# if CRITERION_STATICBP(16, 16, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 10 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 11)
+# endif
+# if CRITERION_STATICBP(16, 16, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 11 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 12)
+# endif
+# if CRITERION_STATICBP(16, 16, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 12 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 13)
+# endif
+# if CRITERION_STATICBP(16, 16, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 13 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 14)
+# endif
+# if CRITERION_STATICBP(16, 16, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 14 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 15)
+# endif
+# if CRITERION_STATICBP(16, 16, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 15 > >::apply();
-  #endif
-  #if CRITERION(16, 16, 16)
+# endif
+# if CRITERION_STATICBP(16, 16, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 16 > >::apply();
-  #endif
-  #if CRITERION(16, 32, 1)
+# endif
+# if CRITERION_STATICBP(16, 32, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 2)
+# endif
+# if CRITERION_STATICBP(16, 32, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 2, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 3)
+# endif
+# if CRITERION_STATICBP(16, 32, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 3, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 4)
+# endif
+# if CRITERION_STATICBP(16, 32, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 4, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 5)
+# endif
+# if CRITERION_STATICBP(16, 32, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 5, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 6)
+# endif
+# if CRITERION_STATICBP(16, 32, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 6, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 7)
+# endif
+# if CRITERION_STATICBP(16, 32, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 7, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 8)
+# endif
+# if CRITERION_STATICBP(16, 32, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 8, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 9)
+# endif
+# if CRITERION_STATICBP(16, 32, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 9, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 10)
+# endif
+# if CRITERION_STATICBP(16, 32, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 10, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 11)
+# endif
+# if CRITERION_STATICBP(16, 32, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 11, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 12)
+# endif
+# if CRITERION_STATICBP(16, 32, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 12, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 13)
+# endif
+# if CRITERION_STATICBP(16, 32, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 13, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 14)
+# endif
+# if CRITERION_STATICBP(16, 32, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 14, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 15)
+# endif
+# if CRITERION_STATICBP(16, 32, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 15, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 16)
+# endif
+# if CRITERION_STATICBP(16, 32, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 16, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 17)
+# endif
+# if CRITERION_STATICBP(16, 32, 17)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 17, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 18)
+# endif
+# if CRITERION_STATICBP(16, 32, 18)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 18, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 19)
+# endif
+# if CRITERION_STATICBP(16, 32, 19)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 19, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 20)
+# endif
+# if CRITERION_STATICBP(16, 32, 20)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 20, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 21)
+# endif
+# if CRITERION_STATICBP(16, 32, 21)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 21, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 22)
+# endif
+# if CRITERION_STATICBP(16, 32, 22)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 22, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 23)
+# endif
+# if CRITERION_STATICBP(16, 32, 23)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 23, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 24)
+# endif
+# if CRITERION_STATICBP(16, 32, 24)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 24, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 25)
+# endif
+# if CRITERION_STATICBP(16, 32, 25)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 25, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 26)
+# endif
+# if CRITERION_STATICBP(16, 32, 26)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 26, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 27)
+# endif
+# if CRITERION_STATICBP(16, 32, 27)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 27, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 28)
+# endif
+# if CRITERION_STATICBP(16, 32, 28)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 28, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 29)
+# endif
+# if CRITERION_STATICBP(16, 32, 29)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 29, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 30)
+# endif
+# if CRITERION_STATICBP(16, 32, 30)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 30, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 31)
+# endif
+# if CRITERION_STATICBP(16, 32, 31)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 31, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 32, 32)
+# endif
+# if CRITERION_STATICBP(16, 32, 32)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 32, uint32_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 1)
+# endif
+# if CRITERION_STATICBP(16, 64, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 2)
+# endif
+# if CRITERION_STATICBP(16, 64, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 2, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 3)
+# endif
+# if CRITERION_STATICBP(16, 64, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 3, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 4)
+# endif
+# if CRITERION_STATICBP(16, 64, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 4, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 5)
+# endif
+# if CRITERION_STATICBP(16, 64, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 5, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 6)
+# endif
+# if CRITERION_STATICBP(16, 64, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 6, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 7)
+# endif
+# if CRITERION_STATICBP(16, 64, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 7, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 8)
+# endif
+# if CRITERION_STATICBP(16, 64, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 8, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 9)
+# endif
+# if CRITERION_STATICBP(16, 64, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 9, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 10)
+# endif
+# if CRITERION_STATICBP(16, 64, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 10, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 11)
+# endif
+# if CRITERION_STATICBP(16, 64, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 11, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 12)
+# endif
+# if CRITERION_STATICBP(16, 64, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 12, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 13)
+# endif
+# if CRITERION_STATICBP(16, 64, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 13, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 14)
+# endif
+# if CRITERION_STATICBP(16, 64, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 14, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 15)
+# endif
+# if CRITERION_STATICBP(16, 64, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 15, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 16)
+# endif
+# if CRITERION_STATICBP(16, 64, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 16, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 17)
+# endif
+# if CRITERION_STATICBP(16, 64, 17)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 17, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 18)
+# endif
+# if CRITERION_STATICBP(16, 64, 18)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 18, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 19)
+# endif
+# if CRITERION_STATICBP(16, 64, 19)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 19, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 20)
+# endif
+# if CRITERION_STATICBP(16, 64, 20)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 20, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 21)
+# endif
+# if CRITERION_STATICBP(16, 64, 21)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 21, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 22)
+# endif
+# if CRITERION_STATICBP(16, 64, 22)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 22, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 23)
+# endif
+# if CRITERION_STATICBP(16, 64, 23)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 23, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 24)
+# endif
+# if CRITERION_STATICBP(16, 64, 24)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 24, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 25)
+# endif
+# if CRITERION_STATICBP(16, 64, 25)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 25, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 26)
+# endif
+# if CRITERION_STATICBP(16, 64, 26)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 26, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 27)
+# endif
+# if CRITERION_STATICBP(16, 64, 27)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 27, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 28)
+# endif
+# if CRITERION_STATICBP(16, 64, 28)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 28, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 29)
+# endif
+# if CRITERION_STATICBP(16, 64, 29)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 29, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 30)
+# endif
+# if CRITERION_STATICBP(16, 64, 30)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 30, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 31)
+# endif
+# if CRITERION_STATICBP(16, 64, 31)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 31, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 32)
+# endif
+# if CRITERION_STATICBP(16, 64, 32)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 32, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 33)
+# endif
+# if CRITERION_STATICBP(16, 64, 33)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 33, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 34)
+# endif
+# if CRITERION_STATICBP(16, 64, 34)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 34, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 35)
+# endif
+# if CRITERION_STATICBP(16, 64, 35)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 35, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 36)
+# endif
+# if CRITERION_STATICBP(16, 64, 36)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 36, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 37)
+# endif
+# if CRITERION_STATICBP(16, 64, 37)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 37, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 38)
+# endif
+# if CRITERION_STATICBP(16, 64, 38)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 38, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 39)
+# endif
+# if CRITERION_STATICBP(16, 64, 39)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 39, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 40)
+# endif
+# if CRITERION_STATICBP(16, 64, 40)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 40, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 41)
+# endif
+# if CRITERION_STATICBP(16, 64, 41)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 41, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 42)
+# endif
+# if CRITERION_STATICBP(16, 64, 42)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 42, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 43)
+# endif
+# if CRITERION_STATICBP(16, 64, 43)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 43, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 44)
+# endif
+# if CRITERION_STATICBP(16, 64, 44)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 44, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 45)
+# endif
+# if CRITERION_STATICBP(16, 64, 45)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 45, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 46)
+# endif
+# if CRITERION_STATICBP(16, 64, 46)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 46, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 47)
+# endif
+# if CRITERION_STATICBP(16, 64, 47)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 47, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 48)
+# endif
+# if CRITERION_STATICBP(16, 64, 48)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 48, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 49)
+# endif
+# if CRITERION_STATICBP(16, 64, 49)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 49, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 50)
+# endif
+# if CRITERION_STATICBP(16, 64, 50)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 50, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 51)
+# endif
+# if CRITERION_STATICBP(16, 64, 51)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 51, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 52)
+# endif
+# if CRITERION_STATICBP(16, 64, 52)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 52, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 53)
+# endif
+# if CRITERION_STATICBP(16, 64, 53)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 53, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 54)
+# endif
+# if CRITERION_STATICBP(16, 64, 54)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 54, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 55)
+# endif
+# if CRITERION_STATICBP(16, 64, 55)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 55, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 56)
+# endif
+# if CRITERION_STATICBP(16, 64, 56)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 56, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 57)
+# endif
+# if CRITERION_STATICBP(16, 64, 57)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 57, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 58)
+# endif
+# if CRITERION_STATICBP(16, 64, 58)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 58, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 59)
+# endif
+# if CRITERION_STATICBP(16, 64, 59)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 59, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 60)
+# endif
+# if CRITERION_STATICBP(16, 64, 60)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 60, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 61)
+# endif
+# if CRITERION_STATICBP(16, 64, 61)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 61, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 62)
+# endif
+# if CRITERION_STATICBP(16, 64, 62)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 62, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 63)
+# endif
+# if CRITERION_STATICBP(16, 64, 63)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 63, uint64_t > >::apply();
-  #endif
-  #if CRITERION(16, 64, 64)
+# endif
+# if CRITERION_STATICBP(16, 64, 64)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statbp <scalar<v16<uint16_t>>, 64, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 8, 1)
+# endif
+# if CRITERION_STATICBP(32, 8, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
-  #endif
-  #if CRITERION(32, 8, 2)
+# endif
+# if CRITERION_STATICBP(32, 8, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 2, uint8_t > >::apply();
-  #endif
-  #if CRITERION(32, 8, 3)
+# endif
+# if CRITERION_STATICBP(32, 8, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 3, uint8_t > >::apply();
-  #endif
-  #if CRITERION(32, 8, 4)
+# endif
+# if CRITERION_STATICBP(32, 8, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 4, uint8_t > >::apply();
-  #endif
-  #if CRITERION(32, 8, 5)
+# endif
+# if CRITERION_STATICBP(32, 8, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 5, uint8_t > >::apply();
-  #endif
-  #if CRITERION(32, 8, 6)
+# endif
+# if CRITERION_STATICBP(32, 8, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 6, uint8_t > >::apply();
-  #endif
-  #if CRITERION(32, 8, 7)
+# endif
+# if CRITERION_STATICBP(32, 8, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 7, uint8_t > >::apply();
-  #endif
-  #if CRITERION(32, 8, 8)
+# endif
+# if CRITERION_STATICBP(32, 8, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 8, uint8_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 1)
+# endif
+# if CRITERION_STATICBP(32, 16, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 2)
+# endif
+# if CRITERION_STATICBP(32, 16, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 2, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 3)
+# endif
+# if CRITERION_STATICBP(32, 16, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 3, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 4)
+# endif
+# if CRITERION_STATICBP(32, 16, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 4, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 5)
+# endif
+# if CRITERION_STATICBP(32, 16, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 5, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 6)
+# endif
+# if CRITERION_STATICBP(32, 16, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 6, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 7)
+# endif
+# if CRITERION_STATICBP(32, 16, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 7, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 8)
+# endif
+# if CRITERION_STATICBP(32, 16, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 8, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 9)
+# endif
+# if CRITERION_STATICBP(32, 16, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 9, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 10)
+# endif
+# if CRITERION_STATICBP(32, 16, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 10, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 11)
+# endif
+# if CRITERION_STATICBP(32, 16, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 11, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 12)
+# endif
+# if CRITERION_STATICBP(32, 16, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 12, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 13)
+# endif
+# if CRITERION_STATICBP(32, 16, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 13, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 14)
+# endif
+# if CRITERION_STATICBP(32, 16, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 14, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 15)
+# endif
+# if CRITERION_STATICBP(32, 16, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 15, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 16, 16)
+# endif
+# if CRITERION_STATICBP(32, 16, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 16, uint16_t > >::apply();
-  #endif
-  #if CRITERION(32, 32, 1)
+# endif
+# if CRITERION_STATICBP(32, 32, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 1 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 2)
+# endif
+# if CRITERION_STATICBP(32, 32, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 2 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 3)
+# endif
+# if CRITERION_STATICBP(32, 32, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 3 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 4)
+# endif
+# if CRITERION_STATICBP(32, 32, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 4 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 5)
+# endif
+# if CRITERION_STATICBP(32, 32, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 5 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 6)
+# endif
+# if CRITERION_STATICBP(32, 32, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 6 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 7)
+# endif
+# if CRITERION_STATICBP(32, 32, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 7 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 8)
+# endif
+# if CRITERION_STATICBP(32, 32, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 8 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 9)
+# endif
+# if CRITERION_STATICBP(32, 32, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 9 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 10)
+# endif
+# if CRITERION_STATICBP(32, 32, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 10 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 11)
+# endif
+# if CRITERION_STATICBP(32, 32, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 11 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 12)
+# endif
+# if CRITERION_STATICBP(32, 32, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 12 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 13)
+# endif
+# if CRITERION_STATICBP(32, 32, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 13 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 14)
+# endif
+# if CRITERION_STATICBP(32, 32, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 14 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 15)
+# endif
+# if CRITERION_STATICBP(32, 32, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 15 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 16)
+# endif
+# if CRITERION_STATICBP(32, 32, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 16 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 17)
+# endif
+# if CRITERION_STATICBP(32, 32, 17)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 17 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 18)
+# endif
+# if CRITERION_STATICBP(32, 32, 18)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 18 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 19)
+# endif
+# if CRITERION_STATICBP(32, 32, 19)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 19 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 20)
+# endif
+# if CRITERION_STATICBP(32, 32, 20)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 20 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 21)
+# endif
+# if CRITERION_STATICBP(32, 32, 21)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 21 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 22)
+# endif
+# if CRITERION_STATICBP(32, 32, 22)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 22 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 23)
+# endif
+# if CRITERION_STATICBP(32, 32, 23)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 23 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 24)
+# endif
+# if CRITERION_STATICBP(32, 32, 24)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 24 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 25)
+# endif
+# if CRITERION_STATICBP(32, 32, 25)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 25 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 26)
+# endif
+# if CRITERION_STATICBP(32, 32, 26)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 26 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 27)
+# endif
+# if CRITERION_STATICBP(32, 32, 27)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 27 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 28)
+# endif
+# if CRITERION_STATICBP(32, 32, 28)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 28 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 29)
+# endif
+# if CRITERION_STATICBP(32, 32, 29)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 29 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 30)
+# endif
+# if CRITERION_STATICBP(32, 32, 30)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 30 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 31)
+# endif
+# if CRITERION_STATICBP(32, 32, 31)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 31 > >::apply();
-  #endif
-  #if CRITERION(32, 32, 32)
+# endif
+# if CRITERION_STATICBP(32, 32, 32)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 32 > >::apply();
-  #endif
-  #if CRITERION(32, 64, 1)
+# endif
+# if CRITERION_STATICBP(32, 64, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 2)
+# endif
+# if CRITERION_STATICBP(32, 64, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 2, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 3)
+# endif
+# if CRITERION_STATICBP(32, 64, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 3, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 4)
+# endif
+# if CRITERION_STATICBP(32, 64, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 4, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 5)
+# endif
+# if CRITERION_STATICBP(32, 64, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 5, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 6)
+# endif
+# if CRITERION_STATICBP(32, 64, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 6, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 7)
+# endif
+# if CRITERION_STATICBP(32, 64, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 7, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 8)
+# endif
+# if CRITERION_STATICBP(32, 64, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 8, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 9)
+# endif
+# if CRITERION_STATICBP(32, 64, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 9, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 10)
+# endif
+# if CRITERION_STATICBP(32, 64, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 10, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 11)
+# endif
+# if CRITERION_STATICBP(32, 64, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 11, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 12)
+# endif
+# if CRITERION_STATICBP(32, 64, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 12, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 13)
+# endif
+# if CRITERION_STATICBP(32, 64, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 13, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 14)
+# endif
+# if CRITERION_STATICBP(32, 64, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 14, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 15)
+# endif
+# if CRITERION_STATICBP(32, 64, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 15, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 16)
+# endif
+# if CRITERION_STATICBP(32, 64, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 16, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 17)
+# endif
+# if CRITERION_STATICBP(32, 64, 17)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 17, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 18)
+# endif
+# if CRITERION_STATICBP(32, 64, 18)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 18, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 19)
+# endif
+# if CRITERION_STATICBP(32, 64, 19)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 19, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 20)
+# endif
+# if CRITERION_STATICBP(32, 64, 20)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 20, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 21)
+# endif
+# if CRITERION_STATICBP(32, 64, 21)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 21, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 22)
+# endif
+# if CRITERION_STATICBP(32, 64, 22)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 22, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 23)
+# endif
+# if CRITERION_STATICBP(32, 64, 23)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 23, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 24)
+# endif
+# if CRITERION_STATICBP(32, 64, 24)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 24, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 25)
+# endif
+# if CRITERION_STATICBP(32, 64, 25)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 25, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 26)
+# endif
+# if CRITERION_STATICBP(32, 64, 26)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 26, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 27)
+# endif
+# if CRITERION_STATICBP(32, 64, 27)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 27, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 28)
+# endif
+# if CRITERION_STATICBP(32, 64, 28)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 28, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 29)
+# endif
+# if CRITERION_STATICBP(32, 64, 29)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 29, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 30)
+# endif
+# if CRITERION_STATICBP(32, 64, 30)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 30, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 31)
+# endif
+# if CRITERION_STATICBP(32, 64, 31)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 31, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 32)
+# endif
+# if CRITERION_STATICBP(32, 64, 32)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 32, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 33)
+# endif
+# if CRITERION_STATICBP(32, 64, 33)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 33, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 34)
+# endif
+# if CRITERION_STATICBP(32, 64, 34)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 34, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 35)
+# endif
+# if CRITERION_STATICBP(32, 64, 35)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 35, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 36)
+# endif
+# if CRITERION_STATICBP(32, 64, 36)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 36, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 37)
+# endif
+# if CRITERION_STATICBP(32, 64, 37)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 37, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 38)
+# endif
+# if CRITERION_STATICBP(32, 64, 38)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 38, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 39)
+# endif
+# if CRITERION_STATICBP(32, 64, 39)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 39, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 40)
+# endif
+# if CRITERION_STATICBP(32, 64, 40)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 40, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 41)
+# endif
+# if CRITERION_STATICBP(32, 64, 41)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 41, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 42)
+# endif
+# if CRITERION_STATICBP(32, 64, 42)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 42, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 43)
+# endif
+# if CRITERION_STATICBP(32, 64, 43)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 43, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 44)
+# endif
+# if CRITERION_STATICBP(32, 64, 44)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 44, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 45)
+# endif
+# if CRITERION_STATICBP(32, 64, 45)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 45, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 46)
+# endif
+# if CRITERION_STATICBP(32, 64, 46)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 46, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 47)
+# endif
+# if CRITERION_STATICBP(32, 64, 47)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 47, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 48)
+# endif
+# if CRITERION_STATICBP(32, 64, 48)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 48, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 49)
+# endif
+# if CRITERION_STATICBP(32, 64, 49)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 49, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 50)
+# endif
+# if CRITERION_STATICBP(32, 64, 50)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 50, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 51)
+# endif
+# if CRITERION_STATICBP(32, 64, 51)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 51, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 52)
+# endif
+# if CRITERION_STATICBP(32, 64, 52)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 52, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 53)
+# endif
+# if CRITERION_STATICBP(32, 64, 53)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 53, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 54)
+# endif
+# if CRITERION_STATICBP(32, 64, 54)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 54, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 55)
+# endif
+# if CRITERION_STATICBP(32, 64, 55)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 55, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 56)
+# endif
+# if CRITERION_STATICBP(32, 64, 56)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 56, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 57)
+# endif
+# if CRITERION_STATICBP(32, 64, 57)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 57, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 58)
+# endif
+# if CRITERION_STATICBP(32, 64, 58)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 58, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 59)
+# endif
+# if CRITERION_STATICBP(32, 64, 59)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 59, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 60)
+# endif
+# if CRITERION_STATICBP(32, 64, 60)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 60, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 61)
+# endif
+# if CRITERION_STATICBP(32, 64, 61)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 61, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 62)
+# endif
+# if CRITERION_STATICBP(32, 64, 62)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 62, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 63)
+# endif
+# if CRITERION_STATICBP(32, 64, 63)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 63, uint64_t > >::apply();
-  #endif
-  #if CRITERION(32, 64, 64)
+# endif
+# if CRITERION_STATICBP(32, 64, 64)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statbp <scalar<v32<uint32_t>>, 64, uint64_t > >::apply();
-  #endif
-  #if CRITERION(64, 8, 1)
+# endif
+# if CRITERION_STATICBP(64, 8, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
-  #endif
-  #if CRITERION(64, 8, 2)
+# endif
+# if CRITERION_STATICBP(64, 8, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 2, uint8_t > >::apply();
-  #endif
-  #if CRITERION(64, 8, 3)
+# endif
+# if CRITERION_STATICBP(64, 8, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 3, uint8_t > >::apply();
-  #endif
-  #if CRITERION(64, 8, 4)
+# endif
+# if CRITERION_STATICBP(64, 8, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 4, uint8_t > >::apply();
-  #endif
-  #if CRITERION(64, 8, 5)
+# endif
+# if CRITERION_STATICBP(64, 8, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 5, uint8_t > >::apply();
-  #endif
-  #if CRITERION(64, 8, 6)
+# endif
+# if CRITERION_STATICBP(64, 8, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 6, uint8_t > >::apply();
-  #endif
-  #if CRITERION(64, 8, 7)
+# endif
+# if CRITERION_STATICBP(64, 8, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 7, uint8_t > >::apply();
-  #endif
-  #if CRITERION(64, 8, 8)
+# endif
+# if CRITERION_STATICBP(64, 8, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 8, uint8_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 1)
+# endif
+# if CRITERION_STATICBP(64, 16, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 2)
+# endif
+# if CRITERION_STATICBP(64, 16, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 2, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 3)
+# endif
+# if CRITERION_STATICBP(64, 16, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 3, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 4)
+# endif
+# if CRITERION_STATICBP(64, 16, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 4, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 5)
+# endif
+# if CRITERION_STATICBP(64, 16, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 5, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 6)
+# endif
+# if CRITERION_STATICBP(64, 16, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 6, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 7)
+# endif
+# if CRITERION_STATICBP(64, 16, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 7, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 8)
+# endif
+# if CRITERION_STATICBP(64, 16, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 8, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 9)
+# endif
+# if CRITERION_STATICBP(64, 16, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 9, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 10)
+# endif
+# if CRITERION_STATICBP(64, 16, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 10, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 11)
+# endif
+# if CRITERION_STATICBP(64, 16, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 11, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 12)
+# endif
+# if CRITERION_STATICBP(64, 16, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 12, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 13)
+# endif
+# if CRITERION_STATICBP(64, 16, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 13, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 14)
+# endif
+# if CRITERION_STATICBP(64, 16, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 14, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 15)
+# endif
+# if CRITERION_STATICBP(64, 16, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 15, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 16, 16)
+# endif
+# if CRITERION_STATICBP(64, 16, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 16, uint16_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 1)
+# endif
+# if CRITERION_STATICBP(64, 32, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 2)
+# endif
+# if CRITERION_STATICBP(64, 32, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 2, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 3)
+# endif
+# if CRITERION_STATICBP(64, 32, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 3, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 4)
+# endif
+# if CRITERION_STATICBP(64, 32, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 4, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 5)
+# endif
+# if CRITERION_STATICBP(64, 32, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 5, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 6)
+# endif
+# if CRITERION_STATICBP(64, 32, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 6, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 7)
+# endif
+# if CRITERION_STATICBP(64, 32, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 7, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 8)
+# endif
+# if CRITERION_STATICBP(64, 32, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 8, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 9)
+# endif
+# if CRITERION_STATICBP(64, 32, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 9, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 10)
+# endif
+# if CRITERION_STATICBP(64, 32, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 10, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 11)
+# endif
+# if CRITERION_STATICBP(64, 32, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 11, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 12)
+# endif
+# if CRITERION_STATICBP(64, 32, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 12, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 13)
+# endif
+# if CRITERION_STATICBP(64, 32, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 13, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 14)
+# endif
+# if CRITERION_STATICBP(64, 32, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 14, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 15)
+# endif
+# if CRITERION_STATICBP(64, 32, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 15, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 16)
+# endif
+# if CRITERION_STATICBP(64, 32, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 16, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 17)
+# endif
+# if CRITERION_STATICBP(64, 32, 17)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 17, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 18)
+# endif
+# if CRITERION_STATICBP(64, 32, 18)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 18, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 19)
+# endif
+# if CRITERION_STATICBP(64, 32, 19)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 19, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 20)
+# endif
+# if CRITERION_STATICBP(64, 32, 20)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 20, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 21)
+# endif
+# if CRITERION_STATICBP(64, 32, 21)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 21, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 22)
+# endif
+# if CRITERION_STATICBP(64, 32, 22)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 22, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 23)
+# endif
+# if CRITERION_STATICBP(64, 32, 23)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 23, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 24)
+# endif
+# if CRITERION_STATICBP(64, 32, 24)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 24, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 25)
+# endif
+# if CRITERION_STATICBP(64, 32, 25)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 25, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 26)
+# endif
+# if CRITERION_STATICBP(64, 32, 26)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 26, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 27)
+# endif
+# if CRITERION_STATICBP(64, 32, 27)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 27, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 28)
+# endif
+# if CRITERION_STATICBP(64, 32, 28)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 28, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 29)
+# endif
+# if CRITERION_STATICBP(64, 32, 29)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 29, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 30)
+# endif
+# if CRITERION_STATICBP(64, 32, 30)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 30, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 31)
+# endif
+# if CRITERION_STATICBP(64, 32, 31)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 31, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 32, 32)
+# endif
+# if CRITERION_STATICBP(64, 32, 32)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 32, uint32_t > >::apply();
-  #endif
-  #if CRITERION(64, 64, 1)
+# endif
+# if CRITERION_STATICBP(64, 64, 1)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 1 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 2)
+# endif
+# if CRITERION_STATICBP(64, 64, 2)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 2 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 3)
+# endif
+# if CRITERION_STATICBP(64, 64, 3)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 3 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 4)
+# endif
+# if CRITERION_STATICBP(64, 64, 4)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 4 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 5)
+# endif
+# if CRITERION_STATICBP(64, 64, 5)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 5 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 6)
+# endif
+# if CRITERION_STATICBP(64, 64, 6)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 6 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 7)
+# endif
+# if CRITERION_STATICBP(64, 64, 7)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 7 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 8)
+# endif
+# if CRITERION_STATICBP(64, 64, 8)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 8 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 9)
+# endif
+# if CRITERION_STATICBP(64, 64, 9)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 9 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 10)
+# endif
+# if CRITERION_STATICBP(64, 64, 10)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 10 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 11)
+# endif
+# if CRITERION_STATICBP(64, 64, 11)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 11 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 12)
+# endif
+# if CRITERION_STATICBP(64, 64, 12)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 12 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 13)
+# endif
+# if CRITERION_STATICBP(64, 64, 13)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 13 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 14)
+# endif
+# if CRITERION_STATICBP(64, 64, 14)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 14 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 15)
+# endif
+# if CRITERION_STATICBP(64, 64, 15)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 15 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 16)
+# endif
+# if CRITERION_STATICBP(64, 64, 16)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 16 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 17)
+# endif
+# if CRITERION_STATICBP(64, 64, 17)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 17 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 18)
+# endif
+# if CRITERION_STATICBP(64, 64, 18)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 18 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 19)
+# endif
+# if CRITERION_STATICBP(64, 64, 19)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 19 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 20)
+# endif
+# if CRITERION_STATICBP(64, 64, 20)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 20 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 21)
+# endif
+# if CRITERION_STATICBP(64, 64, 21)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 21 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 22)
+# endif
+# if CRITERION_STATICBP(64, 64, 22)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 22 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 23)
+# endif
+# if CRITERION_STATICBP(64, 64, 23)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 23 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 24)
+# endif
+# if CRITERION_STATICBP(64, 64, 24)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 24 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 25)
+# endif
+# if CRITERION_STATICBP(64, 64, 25)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 25 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 26)
+# endif
+# if CRITERION_STATICBP(64, 64, 26)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 26 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 27)
+# endif
+# if CRITERION_STATICBP(64, 64, 27)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 27 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 28)
+# endif
+# if CRITERION_STATICBP(64, 64, 28)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 28 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 29)
+# endif
+# if CRITERION_STATICBP(64, 64, 29)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 29 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 30)
+# endif
+# if CRITERION_STATICBP(64, 64, 30)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 30 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 31)
+# endif
+# if CRITERION_STATICBP(64, 64, 31)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 31 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 32)
+# endif
+# if CRITERION_STATICBP(64, 64, 32)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 32 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 33)
+# endif
+# if CRITERION_STATICBP(64, 64, 33)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 33 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 34)
+# endif
+# if CRITERION_STATICBP(64, 64, 34)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 34 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 35)
+# endif
+# if CRITERION_STATICBP(64, 64, 35)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 35 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 36)
+# endif
+# if CRITERION_STATICBP(64, 64, 36)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 36 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 37)
+# endif
+# if CRITERION_STATICBP(64, 64, 37)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 37 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 38)
+# endif
+# if CRITERION_STATICBP(64, 64, 38)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 38 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 39)
+# endif
+# if CRITERION_STATICBP(64, 64, 39)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 39 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 40)
+# endif
+# if CRITERION_STATICBP(64, 64, 40)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 40 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 41)
+# endif
+# if CRITERION_STATICBP(64, 64, 41)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 41 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 42)
+# endif
+# if CRITERION_STATICBP(64, 64, 42)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 42 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 43)
+# endif
+# if CRITERION_STATICBP(64, 64, 43)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 43 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 44)
+# endif
+# if CRITERION_STATICBP(64, 64, 44)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 44 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 45)
+# endif
+# if CRITERION_STATICBP(64, 64, 45)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 45 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 46)
+# endif
+# if CRITERION_STATICBP(64, 64, 46)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 46 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 47)
+# endif
+# if CRITERION_STATICBP(64, 64, 47)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 47 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 48)
+# endif
+# if CRITERION_STATICBP(64, 64, 48)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 48 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 49)
+# endif
+# if CRITERION_STATICBP(64, 64, 49)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 49 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 50)
+# endif
+# if CRITERION_STATICBP(64, 64, 50)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 50 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 51)
+# endif
+# if CRITERION_STATICBP(64, 64, 51)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 51 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 52)
+# endif
+# if CRITERION_STATICBP(64, 64, 52)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 52 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 53)
+# endif
+# if CRITERION_STATICBP(64, 64, 53)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 53 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 54)
+# endif
+# if CRITERION_STATICBP(64, 64, 54)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 54 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 55)
+# endif
+# if CRITERION_STATICBP(64, 64, 55)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 55 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 56)
+# endif
+# if CRITERION_STATICBP(64, 64, 56)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 56 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 57)
+# endif
+# if CRITERION_STATICBP(64, 64, 57)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 57 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 58)
+# endif
+# if CRITERION_STATICBP(64, 64, 58)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 58 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 59)
+# endif
+# if CRITERION_STATICBP(64, 64, 59)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 59 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 60)
+# endif
+# if CRITERION_STATICBP(64, 64, 60)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 60 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 61)
+# endif
+# if CRITERION_STATICBP(64, 64, 61)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 61 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 62)
+# endif
+# if CRITERION_STATICBP(64, 64, 62)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 62 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 63)
+# endif
+# if CRITERION_STATICBP(64, 64, 63)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 63 > >::apply();
-  #endif
-  #if CRITERION(64, 64, 64)
+# endif
+# if CRITERION_STATICBP(64, 64, 64)
     testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statbp <scalar<v64<uint64_t>>, 64 > >::apply();
-  #endif
+# endif
 
   /*
    * Testcases for dynamic Bitpacking, here the bitwidth is calculated data dependently.
-   * Here, we have to specify a block size (see formates/dynbp.h)
+   * Here, we have to specify a block size (done here with 1) (see formates/dynbp.h)
+   * each block contains the same algorithm. But the maximal bitwidth of the (randomly) generated values differs from 1 to 8/16/32/64
    */
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1 >>::apply(); 
-  /*testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xF, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1 >>::apply();
-   
-   testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint16_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint16_t >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint16_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xF, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint16_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint16_t >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint16_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint16_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint16_t >>::apply();
-   
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint32_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint32_t >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint32_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xF, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint32_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint32_t >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint32_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint32_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint32_t >>::apply();
-   
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint64_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint64_t >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint64_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xF, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint64_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint64_t >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint64_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7F, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint64_t >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp < scalar<v8<uint8_t>>,1, uint64_t >>::apply();
-  
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1F,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3F,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7F,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFF,   sizeof(uint16_t) * 8 * countInLog, false, dynbp < scalar<v16<uint16_t>>, 1 >>::apply();
-  
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1F, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3F, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7F, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp < scalar<v32<uint32_t>>,1 >>::apply();
-   
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x1FFFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply(); 
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x3FFFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0x7FFFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-  testcaseCorrectness< String < decltype("DynamicBP"_tstr) >, 0, 0xFFFFFFFFFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp < scalar<v64<uint64_t> * countInLog, false, statbp>,1 >>::apply();
-   * 
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint16_t)*8*countInLog, false, dynbp<scalar<v16<uint16_t>>, 1, uint8_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint32_t)*8*countInLog, false, dynbp<scalar<v32<uint32_t>>, 1, uint8_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint64_t)*8*countInLog, false, dynbp<scalar<v64<uint64_t>>, 1, uint8_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint8_t)*8*countInLog, false, dynbp<scalar<v8<uint8_t>>, 1, uint16_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint16_t)*8*countInLog, false, dynbp<scalar<v16<uint16_t>>, 1>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint32_t)*8*countInLog, false, dynbp<scalar<v32<uint32_t>>, 1, uint16_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint64_t)*8*countInLog, false, dynbp<scalar<v64<uint64_t>>, 1, uint16_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint8_t)*8*countInLog, false, dynbp<scalar<v8<uint8_t>>, 1, uint32_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint16_t)*8*countInLog, false, dynbp<scalar<v16<uint16_t>>, 1, uint32_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint32_t)*8*countInLog, false, dynbp<scalar<v32<uint32_t>>, 1>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint64_t)*8*countInLog, false, dynbp<scalar<v64<uint64_t>>, 1, uint32_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint8_t)*8*countInLog, false, dynbp<scalar<v8<uint8_t>>, 1, uint64_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint16_t)*8*countInLog, false, dynbp<scalar<v16<uint16_t>>, 1, uint64_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint32_t)*8*countInLog, false, dynbp<scalar<v32<uint32_t>>, 1, uint64_t>>::apply();
-  testcaseCorrectness<String<decltype("DynamicBP"_tstr)>, 0, 31, sizeof(uint64_t)*8*countInLog, false, dynbp<scalar<v64<uint64_t>>, 1>>::apply();*/
-   
+# if CRITERION_DYNBP(8, 8, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 8, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 8, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 8, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 8, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 8, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 8, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 8, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1 > >::apply();
+# endif
+
+# if CRITERION_DYNBP(8, 16, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 16, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint16_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(8, 32, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 17)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 18)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 19)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 20)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 21)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 22)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 23)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 24)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 25)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 26)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 27)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 28)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 29)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 30)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 31)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 32, 32)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint32_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(8, 64, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 17)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 18)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 19)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 20)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 21)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 22)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 23)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 24)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 25)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 26)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 27)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 28)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 29)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 30)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 31)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 32)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 33)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 34)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 35)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 36)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 37)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 38)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 39)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 40)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 41)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 42)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 43)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 44)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 45)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 46)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 47)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 48)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 49)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 50)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 51)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 52)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 53)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 54)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 55)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 56)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 57)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 58)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 59)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 60)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 61)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 62)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 63)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(8, 64, 64)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, dynbp <scalar<v8<uint8_t>>, 1, uint64_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(16, 8, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 8, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 8, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 8, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 8, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 8, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 8, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 8, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint8_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(16, 16, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 16, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1 > >::apply();
+# endif
+
+# if CRITERION_DYNBP(16, 32, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 17)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 18)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 19)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 20)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 21)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 22)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 23)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 24)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 25)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 26)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 27)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 28)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 29)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 30)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 31)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 32, 32)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint32_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(16, 64, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 17)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 18)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 19)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 20)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 21)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 22)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 23)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 24)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 25)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 26)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 27)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 28)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 29)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 30)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 31)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 32)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 33)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 34)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 35)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 36)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 37)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 38)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 39)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 40)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 41)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 42)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 43)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 44)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 45)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 46)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 47)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 48)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 49)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 50)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 51)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 52)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 53)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 54)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 55)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 56)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 57)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 58)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 59)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 60)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 61)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 62)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 63)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(16, 64, 64)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, dynbp <scalar<v16<uint16_t>>, 1, uint64_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(32, 8, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 8, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 8, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 8, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 8, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 8, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 8, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 8, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint8_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(32, 16, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 16, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint16_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(32, 32, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 17)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 18)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 19)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 20)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 21)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 22)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 23)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 24)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 25)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 26)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 27)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 28)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 29)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 30)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 31)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 32, 32)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1 > >::apply();
+# endif
+
+# if CRITERION_DYNBP(32, 64, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 17)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 18)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 19)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 20)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 21)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 22)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 23)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 24)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 25)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 26)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 27)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 28)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 29)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 30)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 31)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 32)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 33)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 34)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 35)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 36)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 37)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 38)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 39)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 40)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 41)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 42)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 43)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 44)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 45)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 46)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 47)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 48)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 49)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 50)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 51)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 52)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 53)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 54)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 55)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 56)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 57)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 58)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 59)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 60)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 61)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 62)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 63)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+# if CRITERION_DYNBP(32, 64, 64)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, dynbp <scalar<v32<uint32_t>>, 1, uint64_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(64, 8, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 8, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 8, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 8, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 8, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 8, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 8, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 8, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint8_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(64, 16, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 16, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint16_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(64, 32, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 17)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 18)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 19)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 20)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 21)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 22)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 23)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 24)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 25)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 26)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 27)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 28)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 29)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 30)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 31)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 32, 32)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1, uint32_t > >::apply();
+# endif
+
+# if CRITERION_DYNBP(64, 64, 1)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 2)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 3)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 4)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 5)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 6)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 7)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 8)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 9)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 10)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 11)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 12)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 13)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 14)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 15)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 16)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 17)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 18)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 19)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 20)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 21)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 22)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 23)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 24)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 25)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 26)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 27)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 28)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 29)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 30)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 31)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 32)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 33)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 34)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 35)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 36)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 37)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 38)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 39)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 40)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 41)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 42)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 43)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 44)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 45)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 46)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 47)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 48)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 49)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 50)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 51)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 52)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 53)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 54)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 55)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 56)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 57)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 58)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 59)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 60)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 61)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X1FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 62)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X3FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 63)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0X7FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+# if CRITERION_DYNBP(64, 64, 64)
+    testcaseCorrectness < String < decltype("DynamicBP"_tstr) >, 0, 0XFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, dynbp <scalar<v64<uint64_t>>, 1 > >::apply();
+# endif
+
 
   /*
    * Testcases for static Bitpacking with a static reference value. Here, the we subtract a constant form every value and set the bitwidth to a constant.
    * (example format: see formates/forbp/statforstatbp.h)
    */
-  /*
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint8_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint8_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint8_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint8_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint16_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint16_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint16_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint16_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint32_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint32_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint32_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint32_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint64_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint64_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint64_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  testcaseCorrectness<String<decltype("Static FOR Static BP"_tstr)>, 1, 31, sizeof(uint64_t)*countInLog, false, statforstatbp< scalar<v8<uint8_t>>, scalar<v8<uint8_t>> >>>::apply();
-  */
+#  if CRITERION_STATFORSTATBP(8, 8, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 1 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 8, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 2 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 8, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 3 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 8, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 4 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 8, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 5 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 8, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 6 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 8, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 7 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 8, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 8 > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(8, 16, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 1, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 2, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 3, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 4, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 5, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 6, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 7, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 8, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 9, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 10, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 11, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 12, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 13, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 14, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 15, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 16, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 16, uint16_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(8, 32, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 1, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 2, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 3, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 4, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 5, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 6, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 7, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 8, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 9, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 10, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 11, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 12, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 13, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 14, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 15, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 16, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 17, 0X1FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 17, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 18, 0X3FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 18, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 19, 0X7FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 19, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 20, 0XFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 20, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 21, 0X1FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 21, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 22, 0X3FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 22, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 23, 0X7FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 23, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 24, 0XFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 24, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 25, 0X1FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 25, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 26, 0X3FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 26, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 27, 0X7FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 27, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 28, 0XFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 28, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 29, 0X1FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 29, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 30, 0X3FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 30, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 31, 0X7FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 31, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 32, 32, 0XFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 32, uint32_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(8, 64, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 1, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 2, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 3, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 4, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 5, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 6, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 7, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 8, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 9, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 10, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 11, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 12, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 13, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 14, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 15, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 16, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 17, 0X1FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 17, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 18, 0X3FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 18, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 19, 0X7FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 19, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 20, 0XFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 20, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 21, 0X1FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 21, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 22, 0X3FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 22, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 23, 0X7FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 23, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 24, 0XFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 24, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 25, 0X1FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 25, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 26, 0X3FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 26, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 27, 0X7FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 27, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 28, 0XFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 28, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 29, 0X1FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 29, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 30, 0X3FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 30, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 31, 0X7FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 31, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 32, 0XFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 32, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 33, 0X1FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 33, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 34, 0X3FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 34, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 35, 0X7FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 35, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 36, 0XFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 36, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 37, 0X1FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 37, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 38, 0X3FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 38, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 39, 0X7FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 39, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 40, 0XFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 40, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 41, 0X1FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 41, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 42, 0X3FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 42, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 43, 0X7FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 43, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 44, 0XFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 44, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 45, 0X1FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 45, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 46, 0X3FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 46, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 47, 0X7FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 47, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 48, 0XFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 48, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 49, 0X1FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 49, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 50, 0X3FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 50, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 51, 0X7FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 51, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 52, 0XFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 52, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 53, 0X1FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 53, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 54, 0X3FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 54, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 55, 0X7FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 55, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 56, 0XFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 56, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 57, 0X1FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 57, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 58, 0X3FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 58, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 59, 0X7FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 59, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 60, 0XFFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 60, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 61, 0X1FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 61, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 62, 0X3FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 62, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 63, 0X7FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 63, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(8, 64, 64, 0XFFFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFFFF, sizeof(uint8_t) * 8 * countInLog, false, statforstatbp <scalar<v8<uint8_t>>, REF_STATFORSTATBP, 64, uint64_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(16, 8, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 1, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 8, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 2, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 8, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 3, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 8, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 4, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 8, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 5, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 8, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 6, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 8, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 7, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 8, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 8, uint8_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(16, 16, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 1 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 2 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 3 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 4 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 5 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 6 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 7 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 8 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 9 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 10 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 11 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 12 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 13 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 14 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 15 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 16, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 16 > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(16, 32, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 1, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 2, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 3, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 4, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 5, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 6, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 7, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 8, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 9, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 10, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 11, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 12, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 13, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 14, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 15, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 16, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 17, 0X1FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 17, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 18, 0X3FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 18, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 19, 0X7FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 19, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 20, 0XFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 20, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 21, 0X1FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 21, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 22, 0X3FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 22, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 23, 0X7FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 23, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 24, 0XFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 24, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 25, 0X1FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 25, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 26, 0X3FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 26, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 27, 0X7FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 27, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 28, 0XFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 28, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 29, 0X1FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 29, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 30, 0X3FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 30, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 31, 0X7FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 31, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 32, 32, 0XFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 32, uint32_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(16, 64, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 1, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 2, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 3, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 4, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 5, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 6, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 7, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 8, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 9, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 10, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 11, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 12, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 13, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 14, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 15, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 16, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 17, 0X1FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 17, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 18, 0X3FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 18, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 19, 0X7FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 19, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 20, 0XFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 20, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 21, 0X1FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 21, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 22, 0X3FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 22, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 23, 0X7FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 23, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 24, 0XFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 24, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 25, 0X1FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 25, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 26, 0X3FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 26, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 27, 0X7FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 27, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 28, 0XFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 28, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 29, 0X1FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 29, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 30, 0X3FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 30, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 31, 0X7FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 31, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 32, 0XFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 32, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 33, 0X1FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 33, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 34, 0X3FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 34, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 35, 0X7FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 35, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 36, 0XFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 36, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 37, 0X1FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 37, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 38, 0X3FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 38, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 39, 0X7FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 39, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 40, 0XFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 40, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 41, 0X1FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 41, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 42, 0X3FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 42, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 43, 0X7FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 43, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 44, 0XFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 44, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 45, 0X1FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 45, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 46, 0X3FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 46, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 47, 0X7FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 47, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 48, 0XFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 48, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 49, 0X1FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 49, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 50, 0X3FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 50, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 51, 0X7FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 51, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 52, 0XFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 52, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 53, 0X1FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 53, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 54, 0X3FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 54, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 55, 0X7FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 55, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 56, 0XFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 56, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 57, 0X1FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 57, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 58, 0X3FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 58, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 59, 0X7FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 59, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 60, 0XFFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 60, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 61, 0X1FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 61, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 62, 0X3FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 62, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 63, 0X7FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 63, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(16, 64, 64, 0XFFFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFFFF, sizeof(uint16_t) * 8 * countInLog, false, statforstatbp <scalar<v16<uint16_t>>, REF_STATFORSTATBP, 64, uint64_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(32, 8, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 1, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 8, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 2, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 8, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 3, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 8, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 4, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 8, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 5, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 8, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 6, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 8, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 7, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 8, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 8, uint8_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(32, 16, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 1, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 2, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 3, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 4, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 5, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 6, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 7, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 8, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 9, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 10, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 11, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 12, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 13, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 14, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 15, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 16, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 16, uint16_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(32, 32, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 1 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 2 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 3 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 4 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 5 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 6 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 7 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 8 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 9 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 10 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 11 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 12 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 13 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 14 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 15 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 16 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 17, 0X1FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 17 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 18, 0X3FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 18 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 19, 0X7FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 19 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 20, 0XFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 20 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 21, 0X1FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 21 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 22, 0X3FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 22 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 23, 0X7FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 23 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 24, 0XFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 24 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 25, 0X1FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 25 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 26, 0X3FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 26 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 27, 0X7FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 27 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 28, 0XFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 28 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 29, 0X1FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 29 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 30, 0X3FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 30 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 31, 0X7FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 31 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 32, 32, 0XFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 32 > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(32, 64, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 1, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 2, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 3, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 4, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 5, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 6, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 7, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 8, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 9, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 10, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 11, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 12, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 13, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 14, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 15, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 16, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 17, 0X1FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 17, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 18, 0X3FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 18, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 19, 0X7FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 19, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 20, 0XFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 20, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 21, 0X1FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 21, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 22, 0X3FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 22, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 23, 0X7FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 23, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 24, 0XFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 24, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 25, 0X1FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 25, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 26, 0X3FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 26, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 27, 0X7FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 27, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 28, 0XFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 28, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 29, 0X1FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 29, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 30, 0X3FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 30, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 31, 0X7FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 31, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 32, 0XFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 32, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 33, 0X1FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 33, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 34, 0X3FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 34, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 35, 0X7FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 35, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 36, 0XFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 36, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 37, 0X1FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 37, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 38, 0X3FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 38, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 39, 0X7FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 39, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 40, 0XFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 40, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 41, 0X1FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 41, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 42, 0X3FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 42, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 43, 0X7FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 43, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 44, 0XFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 44, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 45, 0X1FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 45, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 46, 0X3FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 46, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 47, 0X7FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 47, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 48, 0XFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 48, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 49, 0X1FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 49, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 50, 0X3FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 50, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 51, 0X7FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 51, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 52, 0XFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 52, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 53, 0X1FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 53, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 54, 0X3FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 54, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 55, 0X7FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 55, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 56, 0XFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 56, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 57, 0X1FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 57, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 58, 0X3FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 58, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 59, 0X7FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 59, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 60, 0XFFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 60, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 61, 0X1FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 61, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 62, 0X3FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 62, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 63, 0X7FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 63, uint64_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(32, 64, 64, 0XFFFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFFFF, sizeof(uint32_t) * 8 * countInLog, false, statforstatbp <scalar<v32<uint32_t>>, REF_STATFORSTATBP, 64, uint64_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(64, 8, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 1, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 8, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 2, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 8, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 3, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 8, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 4, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 8, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 5, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 8, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 6, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 8, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 7, uint8_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 8, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 8, uint8_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(64, 16, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 1, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 2, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 3, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 4, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 5, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 6, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 7, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 8, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 9, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 10, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 11, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 12, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 13, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 14, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 15, uint16_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 16, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 16, uint16_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(64, 32, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 1, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 2, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 3, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 4, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 5, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 6, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 7, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 8, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 9, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 10, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 11, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 12, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 13, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 14, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 15, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 16, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 17, 0X1FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 17, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 18, 0X3FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 18, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 19, 0X7FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 19, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 20, 0XFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 20, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 21, 0X1FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 21, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 22, 0X3FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 22, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 23, 0X7FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 23, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 24, 0XFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 24, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 25, 0X1FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 25, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 26, 0X3FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 26, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 27, 0X7FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 27, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 28, 0XFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 28, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 29, 0X1FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 29, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 30, 0X3FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 30, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 31, 0X7FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 31, uint32_t > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 32, 32, 0XFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 32, uint32_t > >::apply();
+#  endif
+
+#  if CRITERION_STATFORSTATBP(64, 64, 1, 0X1)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 1 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 2, 0X3)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 2 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 3, 0X7)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 3 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 4, 0XF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 4 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 5, 0X1F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 5 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 6, 0X3F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 6 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 7, 0X7F)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7F, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 7 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 8, 0XFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 8 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 9, 0X1FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 9 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 10, 0X3FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 10 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 11, 0X7FF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 11 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 12, 0XFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 12 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 13, 0X1FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 13 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 14, 0X3FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 14 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 15, 0X7FFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 15 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 16, 0XFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 16 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 17, 0X1FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 17 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 18, 0X3FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 18 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 19, 0X7FFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 19 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 20, 0XFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 20 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 21, 0X1FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 21 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 22, 0X3FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 22 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 23, 0X7FFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 23 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 24, 0XFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 24 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 25, 0X1FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 25 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 26, 0X3FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 26 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 27, 0X7FFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 27 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 28, 0XFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 28 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 29, 0X1FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 29 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 30, 0X3FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 30 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 31, 0X7FFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 31 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 32, 0XFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 32 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 33, 0X1FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 33 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 34, 0X3FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 34 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 35, 0X7FFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 35 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 36, 0XFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 36 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 37, 0X1FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 37 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 38, 0X3FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 38 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 39, 0X7FFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 39 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 40, 0XFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 40 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 41, 0X1FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 41 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 42, 0X3FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 42 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 43, 0X7FFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 43 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 44, 0XFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 44 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 45, 0X1FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 45 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 46, 0X3FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 46 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 47, 0X7FFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 47 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 48, 0XFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 48 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 49, 0X1FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 49 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 50, 0X3FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 50 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 51, 0X7FFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 51 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 52, 0XFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 52 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 53, 0X1FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 53 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 54, 0X3FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 54 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 55, 0X7FFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 55 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 56, 0XFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 56 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 57, 0X1FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 57 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 58, 0X3FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 58 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 59, 0X7FFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 59 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 60, 0XFFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 60 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 61, 0X1FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X1FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 61 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 62, 0X3FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X3FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 62 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 63, 0X7FFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0X7FFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 63 > >::apply();
+#  endif
+#  if CRITERION_STATFORSTATBP(64, 64, 64, 0XFFFFFFFFFFFFFFFF)
+    testcaseCorrectness < String < decltype("Static FOR Static BP"_tstr) >, REF_STATFORSTATBP, 0XFFFFFFFFFFFFFFFF, sizeof(uint64_t) * 8 * countInLog, false, statforstatbp <scalar<v64<uint64_t>>, REF_STATFORSTATBP, 64 > >::apply();
+#  endif
+
+
+
 
   /*
    * Testcases for dynamic Bitpacking with a static reference value. Here, the we subtract a constant form every value and calculated the bitwidth is calculated data dependently.

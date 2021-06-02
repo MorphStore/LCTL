@@ -17,13 +17,13 @@
 #include "../../collate/Concepts.h"
 #include "../../collate/Algorithm.h"
 #include "../../lib/arithmetics.h"
+#include <type_traits>
 
 using namespace LCTL;
 
 template <
   typename processingStyle_t,
-  typename base_t,
-  base_t ref,
+  uint64_t ref,
   size_t bitwidth_t,
   typename inputDatatype_t = NIL
 >
@@ -36,7 +36,20 @@ Algorithm <
         Recursion<
             StaticTokenizer<1>,
             ParameterCalculator<>,
-            Encoder<Minus<Token, Value<base_t,ref>>, Size<bitwidth_t>>,
+            Encoder<
+              Minus<
+                Token, 
+                Value<
+                  typename std::conditional<
+                      true == std::is_same<inputDatatype_t, NIL>::value,
+                      typename processingStyle_t::base_t,
+                      inputDatatype_t
+                  >::type,
+                  ref
+                >
+              >, 
+              Size<bitwidth_t>
+            >,
             Combiner<Token, LCTL_UNALIGNED>
         >,
         Combiner<Token, LCTL_ALIGNED>

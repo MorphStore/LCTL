@@ -1,12 +1,6 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 /* 
  * File:   Concepts.h
- * Author: jule
+ * Author: Juliana Hildebrandt
  *
  * Created on 12. März 2021, 10:28
  */
@@ -15,89 +9,180 @@
 #define CONCEPTS_A_H
 
 namespace LCTL {
-    
-    template <size_t logval_t, class next_t>
-    class KnownTokenizer_A{};
-    
-    template <class logcalc_t>
-    class UnknownTokenizer_A{};
-    
-    template <class log_t, class phys_t, class comb>
-    class Encoder_A{};
-    
-        /* Can not be unrolled */
-    template <
-    /* have to be initialized before loop */
-        class tokenizer_t, 
-        class combiner_t
-    >
-    class LoopRecursion_A {};
-    
-    /* Can be unrolled: input size is known at compile time*/
-    template <
-        /*number of input values is known, inner recursion with  a static tokenizer in outer recursion has i.e. 32 input values */
-        size_t inputsize_t, 
-        class tokenizer_t,
-        /* combiner function of ecursion */
-        class combiner_t,
-        /* combiner function of super recursion might be needed for code generation at this point */
-        class outerCombiner_t>
-    class StaticRecursion_A {};
-    
-    template <
-        /* number of values that have to be tokenized */
-        size_t inputsize_t, 
-        /* number of values per token */
-        size_t logval_t,
-        /* parameterdefinition or encoder/ further recursion */
-        class next_t,
-        /* combiner function might be needed for code generation at this point */
-        class combiner_t,
-        class outerCombiner_t>
-    class StaticRecursion_A<
-        inputsize_t, 
-        KnownTokenizer_A<logval_t, next_t>, 
-        combiner_t, 
-        outerCombiner_t> {};
-        
-    template<class node>  
-    class Algorithm_A{};
-    
-    /* New Node Types for the Analyze layer*/
-        template <
-        typename base_t,
-        class name_t,
-        base_t logicalValue_t, 
-        class numberOfBits_t, 
-        class next_t>
-    class KnownValue_A{
-        public:
-        static const base_t value = logicalValue_t;
-        using next = next_t;
-    };
+  /**
+   * @brief StaticTokenizer (with fix tokensize) in the collate model
+   * 
+   * @param<logval_t> blocksize
+   * @param<next_t> next node (parametercalculator)
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <size_t logval_t, typename next_t>
+  struct KnownTokenizer_A{};
 
-    
-    template <
-        class name, 
-        class logicalValue_t, 
-        class numberOfBits_t, 
-        class next_t
-    >
-    class UnknownValue_A{};
-    
-    template <
-        class parameter_t
-    >
-    class AdaptiveValue_A{};
-    
-    template <
-        class name, 
-        class logicalValue_t, 
-        class numberOfBits_t, 
-        class ...cases_t>
-    class SwitchValue_A{};
+  /**
+   * @brief other tokenizer than StaticTokenizer in the collate model
+   * (Tokensize not known at compiletime)
+   * 
+   * @param<logcalc_t>  calculation rule for the tokensize
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <typename logcalc_t>
+  struct UnknownTokenizer_A{};
+
+  /**
+   * @brief Encoder in the inner recursion
+   * 
+   * @param<log_t>      calculation rule for logical preprocessing of the token
+   * @param<phys_t>     calculation rule for the encoding (at the moment it contains only the calculation of the used bitwidth)
+   * @param<combiner_t> the corresponding combiner
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <
+    typename log_t, 
+    typename phys_t, 
+    typename combiner_t>
+  struct Encoder_A{};
+
+  /** 
+   * @brief This recursion can not be unrolled. 
+   * 
+   * @param<tokenizer_t>  tokenizer in this recursion
+   * @param<combiner_t>   combiner in this recursion
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <
+    typename tokenizer_t, 
+    typename combiner_t>
+  struct LoopRecursion_A {};
+
+  /**
+   * @brief This recursion an be unrolled, because input size is known at compile time and we have a static tokenizer
+   * 
+   * @param<inputsize_t>  number of input values is known (Tokenizer of outer recursion is static)
+   * @param<tokenizer_t>  tokenizer of this recursion
+   * @param<combiner_t>   combiner function of recursion
+   * @param<outerCombiner_t> combiner function of super recursion might be needed for code generation at this point 
+   * 
+   * @todo this case is not fully specified. Only tokenizer and combiner available, parametercalculation and encoder are missing
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <
+    size_t inputsize_t, 
+    typename tokenizer_t,
+    typename combiner_t,
+    typename outerCombiner_t>
+  struct StaticRecursion_A {};
+
+  /**
+   * @brief Easy case. Specialization of unrollabe recursion. Here, additionally to compiletime-known number of input values (static outer tokenizer),
+   * we have a static inner tokenizer.
+   * 
+   * @param<inputsize_t>  number of values that have to be tokenized
+   * @param<logval_t>     number of values per token
+   * @param<next_t>       next node in intermediate represenation parameterdefinition or encoder/ further recursion
+   * @param<combiner_t>   combiner function of recursion
+   * @param<outerCombiner_t> combiner function of super recursion might be needed for code generation at this point 
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <
+    size_t inputsize_t, 
+    size_t logval_t,
+    typename next_t,
+    typename combiner_t,
+    typename outerCombiner_t>
+  struct StaticRecursion_A<
+    inputsize_t, 
+    KnownTokenizer_A<logval_t, next_t>, 
+    combiner_t, 
+    outerCombiner_t> {};
+
+  /**
+   * @brief root node of intermediate representation of an algorithm
+   * 
+   * @param<node_t> child node: a recursion (or FAILURE_ID<...>)
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template<typename node_t>  
+  struct Algorithm_A{};
+
+  /* In the following: New Node Types for the Analyze layer*/
+  
+  /**
+   * @brief This (parameter) value is known at compile time (logical representation as well as number of bits for encoding)
+   * 
+   * @param<base_t>       value type
+   * @param<name_t>       value name
+   * @param<logicalvalue> the value itself
+   * @param<numberOfBits_t> number of bits for encoding
+   * @param<next_t>       child node in intermediate representation
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <
+    typename base_t,
+    typename name_t,
+    base_t logicalValue_t, 
+    typename numberOfBits_t, 
+    typename next_t>
+  struct KnownValue_A{
+      static const base_t value = logicalValue_t;
+      using next = next_t;
+  };
+
+  /**
+   * @brief This (parameter value is only known at runtime, not at compile time.
+   * 
+   * @param<name_t>          value name
+   * @param<logicalValue_t>  calculation rule for the logical representation
+   * @param<numberOfBits_t>  calculation rule for the number of bits for encoding
+   * @param<next_t>       child node in intermediate representation
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <
+    typename name, 
+    typename logicalValue_t, 
+    typename numberOfBits_t, 
+    typename next_t>
+  struct UnknownValue_A{};
+
+  template <
+    typename parameter_t>
+  struct AdaptiveValue_A{};
+
+  /**
+   * @brief  A SwitchValue_A is used in the cases, where the value is not known at compiletime,
+   * but there is a small set of possible values, such that for a non-template implementation a switch case would be used. 
+   * Examples are 
+   * - bit widths, 
+   * - selectors for Simple algorithms (not implemented at th moment), 
+   * - cases for Varint (not implemented at the moment and to see with reservation,  beacause there are betterimplementations without case distincations)
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <
+    typename name, 
+    typename logicalValue_t, 
+    typename numberOfBits_t, 
+    typename ...cases_t>
+  struct SwitchValue_A{};
 }
-
-
 #endif /* CONCEPTS_A_H */
 

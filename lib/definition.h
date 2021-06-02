@@ -16,6 +16,12 @@
 #define LCTL_VERBOSECOMPRESSIONCODE false
 /* prints decompression code during decompress-call */
 #define LCTL_VERBOSEDECOMPRESSIONCODE false
+/* Warnings at runtime */
+#define LCTL_VERBOSERUNTIME true
+#define LCTL_WARNING_COLOR "\033[1m\033[36m"      /* Bold Cyan */
+#define LCTL_RESET_COLOR   "\033[0m"
+#define LCTL_WARNING_TEXT "  Warning "
+#define LCTL_WARNING LCTL_WARNING_COLOR LCTL_WARNING_TEXT LCTL_RESET_COLOR
 /* 
  * don't change: at some points it's not clear, if this is compression or decompression. 
  * So, this constant contains the value of VERBOSECOMPRESSIONCODE or VERBOSEDECOMPRESSIONCODE
@@ -32,24 +38,6 @@
  */
 #define LCTL_KNOWN true
 #define LCTL_UNKNOWN false
-
-/*
- * don't change: defines, which combinations of processing styles/input/output datatypes are not valid
- */
-#define EXCLUDE_ALGORITHM(X) \
-template<recursion_t> struct Algorithm<X<v8<uint8_t>, recursion_t, v16<uint16_t>>>{};\
-template<recursion_t> struct Algorithm<X<v8<uint8_t>, recursion_t, v32<uint32_t>>>{};\
-template<recursion_t> struct Algorithm<X<v8<uint8_t>, recursion_t, v64<uint64_t>>>{};\
-template<recursion_t> struct Algorithm<X<v16<uint16_t>, recursion_t, v8<uint8_t>>>{};\
-template<recursion_t> struct Algorithm<X<v16<uint16_t>, recursion_t, v32<uint32_t>>>{};\
-template<recursion_t> struct Algorithm<X<v16<uint16_t>, recursion_t, v64<uint64_t>>>{};\
-template<recursion_t> struct Algorithm<X<v32<uint32_t>, recursion_t, v8<uint8_t>>>{};\
-template<recursion_t> struct Algorithm<X<v32<uint32_t>, recursion_t, v16<uint16_t>>>{};\
-template<recursion_t> struct Algorithm<X<v32<uint32_t>, recursion_t, v64<uint64_t>>>{};\
-template<recursion_t> struct Algorithm<X<v64<uint64_t>, recursion_t, v8<uint8_t>>>{};\
-template<recursion_t> struct Algorithm<X<v64<uint64_t>, recursion_t, v16<uint16_t>>>{};\
-template<recursion_t> struct Algorithm<X<v64<uint64_t>, recursion_t, v32<uint32_t>>>{};
-
 
 #include <map>
 
