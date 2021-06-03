@@ -16,13 +16,14 @@
  - [The Code Generation](#TheCodeGeneration)
  - [TVL Extension](#TVLExtension)
 
-## Abstract
+## Abstract <a name="Abstract"></a>
+
 Lightweight compression algorithms play an important role for in-memory data processing. Modern CPUs are equipped with SIMD instruction sets, allowing operations on multiple data at once. In recent times, some of the existing compression formats for 32- and 64-Bit integers have been adapted to vectorized data processing. To exploit new hardware capabilities, each compression format and algorithm should be adapted to different register widths. The implementation effort for different register widths and vector extensions can be dratsically reduced by the application of the TVLLib. Nevertheless the implementation effort for a large corpus of lightweight compression algorithms exceeds manual implementation approaches. 
 Instead of considering each single algorithm as a complex data encoding procedure, we use the collate metamodel as a construction kit to specify lightweight compression as well as the corresponding decompresion algorithms. Each algorithm is implemented as a nested C++ template, such that compression as well a decompression code is generated at compile time ans exploits hardware capabilities.
 At the moment our approach is restricted to non-vectorized code. Nevertheless, we specified and evaluated hundreds of algorithm models in correctness and processing times.
 This approach of code generation for lightweight compression and decompression can be used for a simple integration of data formats suitable to hardware-tailored processing of your specific data with its inherent characteristics.
 
-## Introduction
+## Introduction <a name="Introduction"></a>
 
 With increasingly large amounts of data being collected in numerous application areas ranging from science to industry, the importance of online analytical processing (OLAP) workloads increases. The majority of this data can be modeled as structured relational tables, thereby a table is conceptually a two-dimensional structure organized in rows and columns. On that kind of data, OLAP queries typically access a small number of columns, but a high number of rows and are, thus, most efficiently processed using a *columnar data storage* organization. This organization is characterized by the fact that each column of a table is stored separately as a contiguous sequence of values. In recent years, this storage organization has been increasingly applied by a variety of database systems as well as big data systems with a special focus on OLAP.
 
@@ -42,26 +43,39 @@ This guide will
  - the integration of the [TVL](# TVL Extension)
  - ...
 
-## Preliminaries
+## Preliminaries <a name="Preliminaries"></a>
+
 This chapter contains a collection of basics and conventions for lightweight compression as well as C++ snippets for a better understanding. We will write a better chapter introduction, when this chapter is somehow (complete someday maybe).
-# Byte Order
+
+### Byte Order <a name="ByteOrder"></a>
+
 Please read [Endianness](https://en.wikipedia.org/wiki/Endianness) for a better understanding.
 
 Byte order or endianness is the order or sequence of bytes belonging to binary data in main-memory. In principle we have "big-endian (BE)" and "little-endian" (LE). A big-endian system stores the most significant byte of a word at the smallet memory address and the least significante byte at the largest. A little-endian system does this the other way around (also called "Intel format"). Because today's PCs used the little-endian format, our algorithms and implementations are adaptedto this architecture. In example, the 32-bit integer 168496141 (hexadecimal 0x0A0B0C0D) consists of 4 Bytes. In a little-endian system, the 0D byte is stored at the lowest address, the 0A byte at the largest adress.
 <p align="center">
-  <img width="300" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Little-Endian.svg/300px-Little-Endian.svg.png">
+  <img width="200" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Little-Endian.svg/300px-Little-Endian.svg.png">
 </p>
 
-# Depiction Conventions
-For reasons of readability of the stored values, most figures in scientific work concerning lightweight compression are to be read from the right, where the lowest byte address and the first value is depicted. An example is the Figure of the compression format VarintSU<sup>1</sup>.
-<p align="center">
-  <img width="300" src="figs/VarintSU.png">
-</p>
-![alt text](figs/VarintSU.png)
+### Depiction Conventions <a name="DepictionConventions"></a>
+For reasons of readability of the stored values, most figures in scientific work concerning lightweight compression are to be read from the right, where the lowest byte address and the first value is depicted. An example is the left figure of the compression format VarintSU<sup>1</sup>. An example for depicting the memory and its addresses the other way around is shown in the right figure<sup>2</sup>, which shows different data layouts for scalar and SIMD processing.
+
+<center>
+ 
+Read from the Right                                  |  Read form the Left
+:---------------------------------------------------:|:---------------------------------------------------:
+<img width="350" src="figs/VarintSU.png">            | <img width="350" src="figs/Layout.png">
+
+</center>
+In this guide we will use the left depiction convention for our own figures. But be careful while reading scientific papers about data compression.
+
+### Null Suppression and Bit Shifting <a name="NullSuppressionandBitShifting"></a>
+
+Small integers have an amount of leading zeros in their usigned binary representation. To compress such values, a restorable amount of leading zeros can be ommitted respectively suppressed. Null suppression algorithm determine this number of suppressible zeros for blocks of consequtive integer values in omit them in the compressed format.The upper figure above right shows the compressed data format for a null suppression algorithm, which stroes each integer value with 12 instead of 32 bits. Thus, the first value starts at address 0x0, bitposition 0. The second value starts at adress 0x0, bitposition 24, and the fifth value starts at address 0x2, bitposition 16. After a maximum of 32 values for 32 bit values ( in the case of bitwidth 12 after 8 values) another word border is achieved.
+This means, that an implementation of the compression algorithm applied to a runtime known number of values has to loop in steps of 32 values and shift all values which do not start at a word border to the left.
 
 ## The Collate Metamodel <a name="metamodel"></a>
 
-## Concepts
+## Concepts <a name="Concepts"></a>
 
 ### From Model to Code <a name="FromModeltoCode"></a>
 
@@ -83,4 +97,6 @@ For reasons of readability of the stored values, most figures in scientific work
 
 ## References
 <sup>1</sup>Alexander A. Stepanov, Anil R. Gangolli, Daniel E. Rose, Ryan J. Ernst, Paramjit S. Oberoi:
-SIMD-based decoding of posting lists. CIKM 2011: 317-326
+"SIMD-based decoding of posting lists". CIKM 2011: 317-326
+<sup>2</sup> Wayne Xin Zhao, Xudong Zhang, Daniel Lemire, Dongdong Shan, Jian-Yun Nie, Hongfei Yan, Ji-Rong Wen:
+"A General SIMD-based Approach to Accelerating Compression Algorithms". CoRR abs/1502.01916 (2015)
