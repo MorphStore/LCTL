@@ -4,7 +4,7 @@
  - [Abstract](#Abstract)
  - [Introduction](#Introduction)
  - [Preliminaries](#Preliminaries)
- - [The Collate Metamodel](#metamodel)
+ - [The Collate Metamodel](#TheCollateMetamodel)
  - [Concepts](#Concepts)
      - [From Model to Code](#FromModeltoCode)
  - [The Language Implementation](#TheLanguageImplementation)
@@ -35,12 +35,12 @@ Thus, it is neccessary to drastically reduce the implementation complexity for t
 This guide will
 
  - explain some [basics](#Preliminaries) of lightweight data compression
- - the metamodel [Collate](#The Collate Metamodel)
+ - the metamodel [Collate](#TheCollateMetamodel)
  - the general [concept](#Concepts) used to generate code to of a model
- - the implementation of the Collate [language](#The Language Implementation)
- - the implementation of the [intermediate representation](#The Intermediate Representation)
- - the implementation of the [code generation](#The Code Generation)
- - the integration of the [TVL](# TVL Extension)
+ - the implementation of the Collate [language](#TheLanguageImplementation)
+ - the implementation of the [intermediate representation](#TheIntermediateRepresentation)
+ - the implementation of the [code generation](#TheCodeGeneration)
+ - the integration of the [TVL](#TVLExtension)
  - ...
 
 ## Preliminaries <a name="Preliminaries"></a>
@@ -66,14 +66,162 @@ Read from the Right                                  |  Read form the Left
 <img width="350" src="figs/VarintSU.png">            | <img width="350" src="figs/Layout.png">
 
 </center>
-In this guide we will use the left depiction convention for our own figures. But be careful while reading scientific papers about data compression.
+In this guide we will use the left depiction convention for our own figures. In our opinion this is the mind set which corresponds best with the given convention to write binary representations of integer values with the least significant bits to the right and the most significant bits to the left. But be careful while reading scientific papers about data compression.
+
+### Conventions for Compress and Decompress Function
+
+Implementations of lightweight compression functions without fancy (SIMD) processing mostly have three arguments: a pointer to the uncompressed input values, the number of logical values to compress, and a pointer to the compresssed output, that has to be written. Often the return value is used to express the physical size of the compressed values (in bytes, in blocks, etc.). Beside that, each function that compressed a variable number of input values has to have at kind of loop. The same holds for decompression functions. Thus, functions written in C++ might have the followng structure.
+
+```cpp
+size_t compress(uint32_t * in, size_t countIn, uint32_t * out)
+{
+ uint32_t * inCpy = in;
+ uint32_t * outCpy = out;
+ for (int i = 0; i < countIn, i += 32)
+ {
+  //compress
+ }
+ return outCpy - out;
+}
+```
+Here we use copies to increase the input and output pointers during the loop and return the compressed size 4-bytewise.
 
 ### Null Suppression and Bit Shifting <a name="NullSuppressionandBitShifting"></a>
 
 Small integers have an amount of leading zeros in their usigned binary representation. To compress such values, a restorable amount of leading zeros can be ommitted respectively suppressed. Null suppression algorithm determine this number of suppressible zeros for blocks of consequtive integer values in omit them in the compressed format.The upper figure above right shows the compressed data format for a null suppression algorithm, which stroes each integer value with 12 instead of 32 bits. Thus, the first value starts at address 0x0, bitposition 0. The second value starts at adress 0x0, bitposition 24, and the fifth value starts at address 0x2, bitposition 16. After a maximum of 32 values for 32 bit values ( in the case of bitwidth 12 after 8 values) another word border is achieved.
-This means, that an implementation of the compression algorithm applied to a runtime known number of values has to loop in steps of 32 values and shift all values which do not start at a word border to the left.
+This means, that an implementation of the compression algorithm applied to a runtime known number of values has to loop in steps of 32 values and shift all values which do not start at a word border to the left. In the decompression function, all operations are done inversely. This following code snippets implement a null suppression compression and decompression with bitwidth 12 in C++.
 
-## The Collate Metamodel <a name="metamodel"></a>
+<table>
+<tr>
+<th>Compression</th>
+<th>Decompression</th>
+</tr>
+<tr>
+<td>
+ 
+```cpp
+size_t compress(
+ uint32_t * in, /* uncompressed */ 
+ size_t countIn, 
+ uint32_t * out /* compressed */ ) 
+{
+ uint32_t * inCpy = in;
+ uint32_t * outCpy = out;
+ for (int i = 0; i < countIn, i += 32)
+ {
+  *outCpy = inCpy; /* value 1 */
+  inCpy++;
+  *outCpy |= inCpy << 12; /* value 2 */
+  inCpy++;
+  *outCpy |= inCpy << 24; /* value 3 */
+  outCpy++;
+  *outCpy = inCpy >> 8;
+  inCpy++;
+  *outCpy |= inCpy << 4; /* value 4 */
+  inCpy++;
+  *outCpy |= inCpy << 16; /* value 5 */
+  inCpy++;
+  *outCpy |= inCpy << 28; /* value 6 */
+  outCpy++;
+  *outCpy = inCpy >> 4;
+  inCpy++;
+  *outCpy |= inCpy << 8; /* value 7 */
+  inCpy++;
+  *outCpy |= inCpy << 20; /* value 8 */
+  inCpy; outCpy++;
+  // repeat 3 additional times 
+  ...
+ }
+ return outCpy - out;
+}
+```
+                             
+</td>
+<td>
+
+```cpp
+size_t decompress(
+ uint32_t * in, /* compressed */ 
+ size_t countIn, 
+ uint32_t * out /* decompressed */ ) 
+{
+ uint32_t * inCpy = in;
+ uint32_t * outCpy = out;
+ for (int i = 0; i < countIn, i += 32)
+ {
+  *outCpy = inCpy & 0xFFF; /* value 1 */
+  outCpy++;
+  *outCpy = (inCpy >> 12) & 0xFFF; /* value 2 */
+  outCpy++;
+  *outCpy = inCpy >> 24; /* value 3 */
+  inCpy++;
+  *outCpy  |= (inCpy << 8) & 0xFFF;
+  outCpy++;
+  *outCpy = (inCpy >> 4) & 0xFFF; /* value 4 */
+  outCpy++;
+  *outCpy = (inCpy >> 16) & 0xFFF;; /* value 5 */
+  outCpy++;
+  *outCpy = inCpy >> 28; /* value 6 */
+  inCpy++;
+  *outCpy = (inCpy << 4) & 0xFFF;
+  outCpy++;
+  *outCpy = (inCpy >> 8) & 0xFFF; /* value 7 */
+  outCpy++;
+  *outCpy = inCpy >> 20; /* value 8 */
+  outCpy; inCpy++;
+  // repeat 3 additionally times 
+  ...
+ }
+ return outCpy - out;
+}
+```
+
+</td>
+</tr>
+</table>
+
+To write the data at the correct bitposition to the output, bit shifts and bitwise or operations are used. Span values are subdivided into a lower part, filling the rest f the larger output bits and a higher part filling the begin of the next output word. You can see the symmetry between compression and decompression: outCpy and inCpy are swapped as well as "<<" and ">>". For decompression we need additionally the bit mask 000000000 00000000 00001111 11111111, which it used to extract only the 12 bits belonging to the current value.
+
+A slightly different implementation avoids the separation of the parts of the span value an is marginally faster by using pointer casts to a larger integer datatype instead. 
+
+<table>
+<tr>
+<th>Compression</th>
+<th>Decompression</th>
+</tr>
+<tr>
+<td>
+ 
+```cpp
+  *outCpy |= inCpy << 12; /* value 2 */
+  inCpy++;
+  *((uint64_t*) outCpy) |= inCpy << 24; /* value 3 */
+  outCpy++;
+  inCpy++;
+  *outCpy |= inCpy << 4; /* value 4 */
+  ...
+```
+                             
+</td>
+<td>
+
+```cpp
+  *outCpy = (inCpy >> 12) & 0xFFF; /* value 2 */
+  outCpy++;
+  *((uint64_t*) outCpy) = inCpy >> 24; /* value 3 */
+  inCpy++;
+  outCpy++;
+  *outCpy = (inCpy >> 4) & 0xFFF; /* value 4 */
+  ...
+```
+ 
+</td>
+</tr>
+</table>
+
+This in never used in current implementations. Maybe because of the fact, the such functions are mostly generated automatically and nobody cares. We won't used this, because we are dealing with template datatypes and there we have no uint128_t datatype for uint64_t data. Another fact is, that this is only possible vor scalar processing, but not for SIMD programming.
+
+## The Collate Metamodel <a name="TheCollateMetamodel"></a>
 
 ## Concepts <a name="Concepts"></a>
 
