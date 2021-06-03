@@ -57,6 +57,8 @@ For reasons of readability of the stored values, most figures in scientific work
 <p align="center">
   <img width="300" src="/figs/VarintSU.png">
 </p>
+![alt text](figs/VarintSU.png)
+
 ## The Collate Metamodel <a name="metamodel"></a>
 
 ## Concepts
