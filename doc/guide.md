@@ -208,7 +208,7 @@ A slightly different implementation avoids the separation of the parts of the sp
 ```cpp
   *outCpy = (inCpy >> 12) & 0xFFF; /* value 2 */
   outCpy++;
-  *((uint64_t*) outCpy) = inCpy >> 24; /* value 3 */
+  *outCpy) = *((uint64_t*) inCpy) >> 24; /* value 3 */
   inCpy++;
   outCpy++;
   *outCpy = (inCpy >> 4) & 0xFFF; /* value 4 */
