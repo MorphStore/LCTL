@@ -193,12 +193,15 @@ A slightly different implementation avoids the separation of the parts of the sp
 <td>
  
 ```cpp
-  *outCpy |= inCpy << 12; /* value 2 */
+  /* value 2 */
+  *outCpy |= inCpy << 12; 
   inCpy++;
-  *((uint64_t*) outCpy) |= inCpy << 24; /* value 3 */
+  /* value 3 */
+  *((uint64_t*) outCpy) |= inCpy << 24;
   outCpy++;
   inCpy++;
-  *outCpy |= inCpy << 4; /* value 4 */
+  /* value 4 */
+  *outCpy |= inCpy << 4; 
   ...
 ```
                              
@@ -206,12 +209,15 @@ A slightly different implementation avoids the separation of the parts of the sp
 <td>
 
 ```cpp
-  *outCpy = (inCpy >> 12) & 0xFFF; /* value 2 */
+  /* value 2 */
+  *outCpy = (inCpy >> 12) & 0xFFF; 
   outCpy++;
-  *outCpy) = *((uint64_t*) inCpy) >> 24; /* value 3 */
+  /* value 3 */
+  *outCpy) = (*((uint64_t*) inCpy) >> 24) & 0xFFF; 
   inCpy++;
   outCpy++;
-  *outCpy = (inCpy >> 4) & 0xFFF; /* value 4 */
+  /* value 4 */
+  *outCpy = (inCpy >> 4) & 0xFFF; 
   ...
 ```
  
@@ -219,8 +225,8 @@ A slightly different implementation avoids the separation of the parts of the sp
 </tr>
 </table>
 
-This in never used in current implementations. Maybe because of the fact, the such functions are mostly generated automatically and nobody cares. We won't used this, because we are dealing with template datatypes and there we have no uint128_t datatype for uint64_t data. Another fact is, that this is only possible vor scalar processing, but not for SIMD programming.
-
+This in never used in current implementations. Possibly, because that this is only possible vor scalar processing, but not for SIMD programming.
+We don't used this for this reason and, because we are dealing with template datatypes and there we have no uint128_t datatype for uint64_t data. 
 ## The Collate Metamodel <a name="TheCollateMetamodel"></a>
 
 ## Concepts <a name="Concepts"></a>
