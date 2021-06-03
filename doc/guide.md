@@ -11,7 +11,7 @@
      - [Collate Concept Templates](#CollateConceptTemplates)
      - [Calculation Templates](#CalculationTemplates)
  - [The Intermediate Representation](#TheIntermediateRepresentation)
-     - [Collate Intermediate Representation](#CollateIntermediate Representation)
+     - [Collate Intermediate Representation](#CollateIntermediateRepresentation)
      - [Calculation Intermediate Representation](#CalculationIntermediateRepresentation)
  - [The Code Generation](#TheCodeGeneration)
  - [TVL Extension](#TVLExtension)
@@ -43,15 +43,20 @@ This guide will
  - ...
 
 ## Preliminaries
-This chapter contains a collection of basics and conventions for lightweight compression as well as C++ snippets for a better understanding. We will write a better chapter introduction, when this chapter is somehow (complete someday mybe).
+This chapter contains a collection of basics and conventions for lightweight compression as well as C++ snippets for a better understanding. We will write a better chapter introduction, when this chapter is somehow (complete someday maybe).
 # Byte Order
 Please read [Endianness](https://en.wikipedia.org/wiki/Endianness) for a better understanding.
 
-Byte order or endianness is the order or sequence of bytes belonging to binary data in main-memory. In principle we have "big-endian (BE)" and "little-endian" (LE). A big-endian system stores the most significant byte of a word at the smallet memory address and the least significante byte at the largest. A little-endian system does this the other way around. In example, the 32-bit integer 168496141 (hexadecimal 0x0A0B0C0D) consists of 4 Bytes. In a little-endian system, the 0D byte is stored at the lowest address, the 0A byte at the largest adress.
+Byte order or endianness is the order or sequence of bytes belonging to binary data in main-memory. In principle we have "big-endian (BE)" and "little-endian" (LE). A big-endian system stores the most significant byte of a word at the smallet memory address and the least significante byte at the largest. A little-endian system does this the other way around (also called "Intel format"). Because today's PCs used the little-endian format, our algorithms and implementations are adaptedto this architecture. In example, the 32-bit integer 168496141 (hexadecimal 0x0A0B0C0D) consists of 4 Bytes. In a little-endian system, the 0D byte is stored at the lowest address, the 0A byte at the largest adress.
 <p align="center">
-![img](https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Little-Endian.svg/300px-Little-Endian.svg.png)
- </p>
+  <img width="300" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Little-Endian.svg/300px-Little-Endian.svg.png">
+</p>
 
+# Depiction Conventions
+For reasons of readability of the stored values, most figures in scientific work concerning lightweight compression are to be read from the right, where the lowest byte address and the first value is depicted. An example is the Figure of the compression format VarintSU<sup>1</sup>.
+<p align="center">
+  <img width="300" src="/figs/VarintSU.png">
+</p>
 ## The Collate Metamodel <a name="metamodel"></a>
 
 ## Concepts
@@ -73,3 +78,7 @@ Byte order or endianness is the order or sequence of bytes belonging to binary d
 ## The Code Generation <a name="TheCodeGeneration"></a>
 
 ## TVL Extension <a name="TVLExtension"></a>
+
+## References
+<sup>1</sup>Alexander A. Stepanov, Anil R. Gangolli, Daniel E. Rose, Ryan J. Ernst, Paramjit S. Oberoi:
+SIMD-based decoding of posting lists. CIKM 2011: 317-326
