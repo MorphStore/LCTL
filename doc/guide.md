@@ -6,15 +6,15 @@
  - [Preliminaries](#Preliminaries)
  - [The Collate Metamodel](#metamodel)
  - [Concepts](#Concepts)
-     - [From Model to Code](#From Model to Code)
- - [The Language Implementation](#The Language Implementation)
-     - [Collate Concept Templates](#Collate Concept Templates)
-     - [Calculation Templates](#Calculation Templates)
- - [The Intermediate Representation](#The Intermediate Representation)
-     - [Collate Intermediate Representation](#Collate Intermediate Representation)
-     - [Calculation Intermediate Representation](#Calculation Intermediate Representation)
- - [The Code Generation](#The Code Generation)
- - [TVL Extension](# TVL Extension)
+     - [From Model to Code](#FromModeltoCode)
+ - [The Language Implementation](#TheLanguageImplementation)
+     - [Collate Concept Templates](#CollateConceptTemplates)
+     - [Calculation Templates](#CalculationTemplates)
+ - [The Intermediate Representation](#TheIntermediateRepresentation)
+     - [Collate Intermediate Representation](#CollateIntermediate Representation)
+     - [Calculation Intermediate Representation](#CalculationIntermediateRepresentation)
+ - [The Code Generation](#TheCodeGeneration)
+ - [TVL Extension](#TVLExtension)
 
 ## Abstract
 Lightweight compression algorithms play an important role for in-memory data processing. Modern CPUs are equipped with SIMD instruction sets, allowing operations on multiple data at once. In recent times, some of the existing compression formats for 32- and 64-Bit integers have been adapted to vectorized data processing. To exploit new hardware capabilities, each compression format and algorithm should be adapted to different register widths. The implementation effort for different register widths and vector extensions can be dratsically reduced by the application of the TVLLib. Nevertheless the implementation effort for a large corpus of lightweight compression algorithms exceeds manual implementation approaches. 
@@ -48,26 +48,28 @@ This chapter contains a collection of basics and conventions for lightweight com
 Please read [Endianness](https://en.wikipedia.org/wiki/Endianness) for a better understanding.
 
 Byte order or endianness is the order or sequence of bytes belonging to binary data in main-memory. In principle we have "big-endian (BE)" and "little-endian" (LE). A big-endian system stores the most significant byte of a word at the smallet memory address and the least significante byte at the largest. A little-endian system does this the other way around. In example, the 32-bit integer 168496141 (hexadecimal 0x0A0B0C0D) consists of 4 Bytes. In a little-endian system, the 0D byte is stored at the lowest address, the 0A byte at the largest adress.
+<p align="center">
 ![img](https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Little-Endian.svg/300px-Little-Endian.svg.png)
+ </p>
 
 ## The Collate Metamodel <a name="metamodel"></a>
 
 ## Concepts
 
-### From Model to Code
+### From Model to Code <a name="FromModeltoCode"></a>
 
-## The Language Implementation
+## The Language Implementation <a name="TheLanguageImplementation"></a>
 
-### Collate Concept Templates
+### Collate Concept Templates <a name="CollateConceptTemplates"></a>
 
-### Calculation Templates
+### Calculation Templates <a name="CalculationTemplates"></a>
 
-## The Intermediate Representation
+## The Intermediate Representation <a name="TheIntermediateRepresentation"></a>
 
-### Collate Intermediate Representation
+### Collate Intermediate Representation <a name="CollateIntermediateRepresentation"></a>
 
-### Calculation Intermediate Representation
+### Calculation Intermediate Representation <a name="CalculationIntermediateRepresentation"></a>
 
-## The Code Generation
+## The Code Generation <a name="TheCodeGeneration"></a>
 
-## TVL Extension
+## TVL Extension <a name="TVLExtension"></a>
