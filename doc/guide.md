@@ -55,7 +55,7 @@ Byte order or endianness is the order or sequence of bytes belonging to binary d
 # Depiction Conventions
 For reasons of readability of the stored values, most figures in scientific work concerning lightweight compression are to be read from the right, where the lowest byte address and the first value is depicted. An example is the Figure of the compression format VarintSU<sup>1</sup>.
 <p align="center">
-  <img width="300" src="/figs/VarintSU.png">
+  <img width="300" src="figs/VarintSU.png">
 </p>
 ![alt text](figs/VarintSU.png)
 
