@@ -5,7 +5,7 @@
  - [Introduction](#Introduction)
  - [Preliminaries](#Preliminaries)
  - [The Collate Metamodel](#TheCollateMetamodel)
- - [Concepts](#Concepts)
+ - [Overview](#Overview)
      - [From Model to Code](#FromModeltoCode)
  - [The Language Implementation](#TheLanguageImplementation)
      - [Collate Concept Templates](#CollateConceptTemplates)
@@ -36,7 +36,7 @@ This guide will
 
  - explain some [basics](#Preliminaries) of lightweight data compression
  - the metamodel [Collate](#TheCollateMetamodel)
- - the general [concept](#Concepts) used to generate code to of a model
+ - give a high level [Overview] of the implementation idea (#Overview) used to generate code to of a model
  - the implementation of the Collate [language](#TheLanguageImplementation)
  - the implementation of the [intermediate representation](#TheIntermediateRepresentation)
  - the implementation of the [code generation](#TheCodeGeneration)
@@ -88,7 +88,7 @@ Here we use copies to increase the input and output pointers during the loop and
 
 ### Null Suppression and Bit Shifting <a name="NullSuppressionandBitShifting"></a>
 
-Small integers have an amount of leading zeros in their usigned binary representation. To compress such values, a restorable amount of leading zeros can be ommitted respectively suppressed. Null suppression algorithm determine this number of suppressible zeros for blocks of consequtive integer values in omit them in the compressed format.The upper figure above right shows the compressed data format for a null suppression algorithm, which stroes each integer value with 12 instead of 32 bits. Thus, the first value starts at address 0x0, bitposition 0. The second value starts at adress 0x0, bitposition 24, and the fifth value starts at address 0x2, bitposition 16. After a maximum of 32 values for 32 bit values ( in the case of bitwidth 12 after 8 values) another word border is achieved.
+Small integers have an amount of leading zeros in their usigned binary representation. To compress such values, a restorable amount of leading zeros can be ommitted respectively suppressed. Bitpacking algorithms are based on null suppression. These algorithm determine a number of suppressible zeros for blocks of consequtive integer values in omit them in the compressed format. The upper figure above right shows the compressed data format for a null suppression algorithm, which stroes each integer value with 12 instead of 32 bits. Thus, the first value starts at address 0x0, bitposition 0. The second value starts at adress 0x0, bitposition 24, and the fifth value starts at address 0x2, bitposition 16. After a maximum of 32 values for 32 bit values ( in the case of bitwidth 12 after 8 values) another word border is achieved.
 This means, that an implementation of the compression algorithm applied to a runtime known number of values has to loop in steps of 32 values and shift all values which do not start at a word border to the left. In the decompression function, all operations are done inversely. This following code snippets implement a null suppression compression and decompression with bitwidth 12 in C++.
 
 <table>
@@ -213,7 +213,7 @@ A slightly different implementation avoids the separation of the parts of the sp
   *outCpy = (inCpy >> 12) & 0xFFF; 
   outCpy++;
   /* value 3 */
-  *outCpy) = (*((uint64_t*) inCpy) >> 24) & 0xFFF; 
+  *outCpy = (*((uint64_t*) inCpy) >> 24) & 0xFFF; 
   inCpy++;
   outCpy++;
   /* value 4 */
@@ -226,10 +226,31 @@ A slightly different implementation avoids the separation of the parts of the sp
 </table>
 
 This in never used in current implementations. Possibly, because that this is only possible vor scalar processing, but not for SIMD programming.
-We don't used this for this reason and, because we are dealing with template datatypes and there we have no uint128_t datatype for uint64_t data. 
+We don't used this for this reason and, because we are dealing with template datatypes and there we have no uint128_t datatype for uint64_t data.
+
 ## The Collate Metamodel <a name="TheCollateMetamodel"></a>
 
-## Concepts <a name="Concepts"></a>
+The metamodel is described in some scientific papers, i. e. in
+["Model-Driven Integration of CompressionAlgorithms in Column-Store Database Systems"](http://ceur-ws.org/Vol-1670/paper-18.pdf)<sup>3</sup> (with a prehistoric implementation in octave) and in
+["Metamodeling Lightweight Data CompressionAlgorithms and its Application Scenarios"](http://ceur-ws.org/Vol-1979/paper-12.pdf)<sup>4</sup>, (with a prehistoric implementation in Scala). Nevertheless, you can find the important parts in the following.
+
+One of our main challenges is the definition of a metamodel for the class of lightweight data compression algorithms. This is the starting point and anchor of our approach, since all algorithms can be consistently described with this unifiedand specific model in a platform-independent manner. In [12], we have proposed an appropriate model called COLLATE and the development of this model in detail. In the remainder of this section, we briefly summarize its main aspects. The input  for COLLATE is a sequence of uncompressed (integer) valuesdue to the DSM storage format. The output is a sequence of compressed val-ues. Input and output data have a logical representation (semantic level) and aphysical representation (bit or encoding level). Through the analysis of the available algorithms, we have identified three important aspects. First, there are only six basic techniques which are used in the algorithms. These basic techniques are parameter-dependent and the parameter values are calculated within the algorithms. Second, a lot of algorithms subdivide the input data hierarchically in subsequences for which the parameters can be calculated. The following data processing of a subsequence depends on the subsequence itself. That means, data subdivision and parameter calculation are the adjustment points and the appli-cation of the basic techniques is straightforward. Third, for an exact algorithmdescription, the combination and arrangement of codewords and parameters haveto be defined. Here, the algorithms differ widely. Based on a systematic algorithm analysis, we defined our metamodel for this class of algorithms. The COLLATE metamodel consists of five main concepts — or building blocks — being required to transform a sequence of  uncompressed values to a sequence of compressed values:
+
+ - Recursion: Each model includes a Recursion per se. This  concept is responsible for the hierarchical sequence subdivision and for applying the included concepts in the Recursion on each data subsequence.
+ - Tokenizer: This concept is responsible for dividing an input sequence into finite subsequences of k values (or single values).
+ - Parameter Calculator: The concept Parameter Calculator determines parameter values for finite subsequences or single values. The specification of the parameter values is done using parameter definitions.
+ - Encoder: The third concept determines the encoded form for values to be com-pressed at bit level. Again, the concrete encoding is specified using functionsrepresenting the basic techniques.
+ - Combiner: The Combiner is essential to arrange the encoded values and the calculated parameters for the output representation.
+
+In addition to these individual concepts, the next figure illustrates the interactions and the data flow through our concepts. 
+
+[Collate Data Flow](figs/CollateDataflow.png)
+
+In this figure, a simple case with only onepair ofParameter CalculatorandEncoderis depicted and can be describedas follows. The input data is first processed by aTokenizer. MostTokenizersneed only a finite prefix of a data sequence to decide how many values to out-put. The rest of the sequence is used as further input for theTokenizerandprocessed in the same manner (shown with a dashed line). Moreover, there areTokenizersneeding the whole (finite) input sequence to decide how to subdivideit. A second task of theTokenizeris to decide for each output sequence whichpair  of  Parameter  Calculator  and  Encoder  is  used  for  the  further  processing.Most algorithms process all data in the same way, so we need only one pair ofParameter CalculatorandEncoder. Some of them distinguish several cases, sothat this choice between several pairs is necessary. The finiteTokenizeroutputsequences serve as input for theParameter Calculatorand theEncoder.Parameters are often required for the encoding and decoding. Therefore, wedefined theParameter Calculatorconcept, which knows special rules (param-eter  definitions)  for  the  calculation  of  several  parameters.  Parameters  can  beused to store a state during data processing. This is depicted with a dashed line.Calculated parameters have a logical representation for further calculations andthe encoding of values as well as a representation at bit level, because on theone hand they are needed to calculate the encoding of values, on the other handthey have to be stored additionally to allow the decoding.TheEncoderprocesses an atomic input, where the output of theParameterCalculatorand other parameters are additional inputs. The input is a tokenthat cannot or shall not be subdivided anymore. In practice theEncodermostlygets  a  single  integer  value  to  be  mapped  into  a  binary  code.  Similar  to  theparameter definitions, theEncodercalculates a logical representation of its inputvalue and an encoding at bit level using functions. Finally, theCombinerarrangesthe encoded values and the calculated parameters for the output representation.
+
+## Overview <a name="Overview"></a>
+
+
 
 ### From Model to Code <a name="FromModeltoCode"></a>
 
@@ -250,7 +271,11 @@ We don't used this for this reason and, because we are dealing with template dat
 ## TVL Extension <a name="TVLExtension"></a>
 
 ## References
-<sup>1</sup>Alexander A. Stepanov, Anil R. Gangolli, Daniel E. Rose, Ryan J. Ernst, Paramjit S. Oberoi:
-"SIMD-based decoding of posting lists". CIKM 2011: 317-326
-<sup>2</sup> Wayne Xin Zhao, Xudong Zhang, Daniel Lemire, Dongdong Shan, Jian-Yun Nie, Hongfei Yan, Ji-Rong Wen:
-"A General SIMD-based Approach to Accelerating Compression Algorithms". CoRR abs/1502.01916 (2015)
+
+<sup>1</sup>Alexander A. Stepanov, Anil R. Gangolli, Daniel E. Rose, Ryan J. Ernst, Paramjit S. Oberoi: "SIMD-based decoding of posting lists". CIKM 2011: 317-326
+
+<sup>2</sup> Wayne Xin Zhao, Xudong Zhang, Daniel Lemire, Dongdong Shan, Jian-Yun Nie, Hongfei Yan, Ji-Rong Wen: "A General SIMD-based Approach to Accelerating Compression Algorithms". CoRR abs/1502.01916 (2015)
+
+<sup>3</sup> Juliana Hildebrandt, Dirk Habich, Wolfgang Lehner: "Model-Driven Integration of Compression Algorithms in Column-Store Database Systems". LWDA 2016: 30-41
+
+<sup>4</sup> Juliana Hildebrandt, Dirk Habich, Thomas Kühn, Patrick Damme, Wolfgang Lehner: "Metamodeling Lightweight Data Compression Algorithms and its Application Scenarios". ER Forum/Demos 2017: 128-141
