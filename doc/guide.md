@@ -4,6 +4,8 @@
  - [Abstract](#Abstract)
  - [Introduction](#Introduction)
  - [Preliminaries](#Preliminaries)
+     - [Byte Order](#ByteOrder) 
+     - [Depiction Conventions](#DepictionConventions)
  - [The Collate Metamodel](#TheCollateMetamodel)
  - [Overview](#Overview)
      - [From Model to Code](#FromModeltoCode)
@@ -68,9 +70,9 @@ Read from the Right                                  |  Read form the Left
 </center>
 In this guide we will use the left depiction convention for our own figures. In our opinion this is the mind set which corresponds best with the given convention to write binary representations of integer values with the least significant bits to the right and the most significant bits to the left. But be careful while reading scientific papers about data compression.
 
-### Conventions for Compress and Decompress Function
+### Conventions for Compression and Decompression Functions <a name="ConventionsForCompressionAndDecompressionFunctions"></a>
 
-Implementations of lightweight compression functions without fancy (SIMD) processing mostly have three arguments: a pointer to the uncompressed input values, the number of logical values to compress, and a pointer to the compresssed output, that has to be written. Often the return value is used to express the physical size of the compressed values (in bytes, in blocks, etc.). Beside that, each function that compressed a variable number of input values has to have at kind of loop. The same holds for decompression functions. Thus, functions written in C++ might have the followng structure.
+Implementations of lightweight compression functions without fancy (SIMD) processing mostly have three arguments: a pointer to the uncompressed input values, the number of logical values to compress, and a pointer to the compresssed output, that has to be written. Often the return value is used to express the physical size of the compressed values (in bytes, in blocks, etc.). Beside that, each function that compressed a variable number of input values has to have at least one loop (over blocks of values or single value). The same holds for decompression functions. Thus, functions written in C++ might have the followng structure.
 
 ```cpp
 size_t compress(uint32_t * in, size_t countIn, uint32_t * out)
@@ -180,7 +182,7 @@ size_t decompress(
 </tr>
 </table>
 
-To write the data at the correct bitposition to the output, bit shifts and bitwise or operations are used. Span values are subdivided into a lower part, filling the rest f the larger output bits and a higher part filling the begin of the next output word. You can see the symmetry between compression and decompression: outCpy and inCpy are swapped as well as "<<" and ">>". For decompression we need additionally the bit mask 000000000 00000000 00001111 11111111, which it used to extract only the 12 bits belonging to the current value.
+To write the data at the correct bitposition to the output, bit shifts and bitwise or operations are used. Span values are subdivided into a lower part, filling the rest if the larger output bits and a higher part filling the begin of the next output word. You can see the symmetry between compression and decompression: outCpy and inCpy are swapped as well as "<<" and ">>". For decompression we need additionally the bit mask 000000000 00000000 00001111 11111111, which it used to extract only the 12 bits belonging to the current value.
 
 A slightly different implementation avoids the separation of the parts of the span value an is marginally faster by using pointer casts to a larger integer datatype instead. 
 
@@ -252,7 +254,7 @@ In this figure, a simple case with only one pair of Parameter Calculator and Enc
 
 ## Overview <a name="Overview"></a>
 
-
+This section will give you a short and high-level overview about the implementation approach. First, our compression format models are expressed with nested C++ templates. Each algroithm is composed 
 
 ### From Model to Code <a name="FromModeltoCode"></a>
 
