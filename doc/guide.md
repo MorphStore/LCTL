@@ -6,6 +6,8 @@
  - [Preliminaries](#Preliminaries)
      - [Byte Order](#ByteOrder) 
      - [Depiction Conventions](#DepictionConventions)
+     - [Conventions for Compression and Decompression Functions](#ConventionsForCompressionAndDecompressionFunctions)
+     - [Example Null Suppression and Bit Shifting](#NullSuppressionandBitShifting)
  - [The Collate Metamodel](#TheCollateMetamodel)
  - [Overview](#Overview)
      - [From Model to Code](#FromModeltoCode)
@@ -88,7 +90,7 @@ size_t compress(uint32_t * in, size_t countIn, uint32_t * out)
 ```
 Here we use copies to increase the input and output pointers during the loop and return the compressed size 4-bytewise.
 
-### Null Suppression and Bit Shifting <a name="NullSuppressionandBitShifting"></a>
+###  Example Null Suppression and Bit Shifting <a name="NullSuppressionandBitShifting"></a>
 
 Small integers have an amount of leading zeros in their usigned binary representation. To compress such values, a restorable amount of leading zeros can be ommitted respectively suppressed. Bitpacking algorithms are based on null suppression. These algorithm determine a number of suppressible zeros for blocks of consequtive integer values in omit them in the compressed format. The upper figure above right shows the compressed data format for a null suppression algorithm, which stroes each integer value with 12 instead of 32 bits. Thus, the first value starts at address 0x0, bitposition 0. The second value starts at adress 0x0, bitposition 24, and the fifth value starts at address 0x2, bitposition 16. After a maximum of 32 values for 32 bit values ( in the case of bitwidth 12 after 8 values) another word border is achieved.
 This means, that an implementation of the compression algorithm applied to a runtime known number of values has to loop in steps of 32 values and shift all values which do not start at a word border to the left. In the decompression function, all operations are done inversely. This following code snippets implement a null suppression compression and decompression with bitwidth 12 in C++.
@@ -254,7 +256,17 @@ In this figure, a simple case with only one pair of Parameter Calculator and Enc
 
 ## Overview <a name="Overview"></a>
 
-This section will give you a short and high-level overview about the implementation approach. First, our compression format models are expressed with nested C++ templates. Each algroithm is composed 
+This section will give you a short and high-level overview about the implementation approach. First, our compression format models are expressed with nested C++ templates belonging to three distinct areas of responsibilities.
+
+1. Collate area: Each algorithm consists of a 4-tuple of the four Collate templates Tokenizer, ParameterCalculator, Encoder/Recursion, and Combiner - possibly nested. At the moment, a maximal nesting depth of 2 is possible.
+2. Term area: The collate concepts contain one or more functions, which are expressed as C++ templates, two. Here, LCTL provides mainly simple arithmetic expressions and aggregations.
+3. Processing area: In this area all information concerning data types, processing type definitions for SIMD programming is collected in specialized C++ templates and builds the bridge to the TVLLib. Each algorithm is knows its integral input datatype as well as a processing style (a vector extension/ register width and a component size, or scalar processing).
+
+Second, we will explain the translation process to compression and decompression code in short. The next figure shows the approach. At the left, an algorithm is defined through (1) a template tree using the collate concepts, which, themselves, contain mainly functions as simple abstract syntax trees, and (2) processing information. At compile time, this template tree is transformed to an intermediate representation (in the middle of the figure). This intermediate tree is contains the general control flow which is equal for compresson and decompression. Examples for large transformations are the distinction between not unrollable loop and unrollable loops, switch cases for parameters like bitwidths, or replacements inside switch cases or unrolled loops by constant values like the number of bits to shift the input data to the left respectively to the right. You can see the last step of generating the compression or decompression code at the right. Here, the loops and case distinctions are generated, logical calculations are translated to C++ code in the case of data compression, or inverted before in the case of decompression. The generated code can be executed at run time and leads to similar comprssion and decompression speed to manual implementations.
+
+<p align="center">
+  <img width="800" src="figs/Translation.png">
+</p>
 
 ### From Model to Code <a name="FromModeltoCode"></a>
 
