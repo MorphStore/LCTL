@@ -305,7 +305,7 @@ In the following you see the implementation of an example algorithm for Static B
 - >;
 ```
 
-All tempates concerning Collate concepts are highlighted in red, calculations are highlighted in green, and processing information is highlighted in orange.
+All templates concerning Collate concepts are highlighted in red, calculations are highlighted in green, and processing information is highlighted in orange.
 
 Second, we will explain the translation process to compression and decompression code in short. The next figure shows the approach. At the left, an algorithm is defined through (1) a template tree using the collate concepts, which, themselves, contain mainly functions as simple abstract syntax trees, and (2) processing information. At compile time, this template tree is transformed to an intermediate representation (in the middle of the figure). This intermediate tree is contains the general control flow which is equal for compression and decompression. Examples for large transformations are the distinctions between not unrollable loops and unrollable loops, switch cases for parameters like bitwidths, or replacements inside switch cases or unrolled loops by constant values like the number of bits to shift the input data to the left respectively to the right. You can see the last step of generating the compression or decompression code at the right. Here, the loops and case distinctions are generated, logical calculations are translated to C++ code in the case of data compression, or inverted before in the case of decompression. The generated code can be executed at run time and results in compression and decompression speeds similar to manual implementations.
 
@@ -313,11 +313,11 @@ Second, we will explain the translation process to compression and decompression
   <img width="800" src="figs/Translation.png">
 </p>
 
-## The LCTL Language Implementation <a name="TheLanguageImplementation"></a>
+## The LCTL Frontend and Middle Layer <a name="TheLanguageImplementation"></a>
 
 In this section, we will understand the grammar of the used LCTL language, understand the project structure for already implemented algorithms and understand the implementation of the example format for Static Pitpacking.
 
-### The Language Grammar and Runtime Connection <a name="TheLanguageGrammarAndRuntimeConnection"></a>
+### Language Implementation: Collate Concept Templates <a name="CollateConceptTemplates"></a>
 
 All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/collate```. One of the two files is named ```LCTL/collate/Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
 
@@ -333,7 +333,7 @@ template<
 
 which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here.
 
-### Transformation CHain
+### Middle Layer - Transformation Chain <a name="TransformationChain"></a>
 
 Regarding to functionality, it looks a little different with the file ```LCTL/collate/Algorithm.h``` containing only a wrapper struct named ```Algorithm```, which is the entry point for data compression and decompression at runtime. It starts with the following lines:
 
@@ -377,14 +377,16 @@ MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t decompress(
 
 with pointers to the memory region of uncompressed and to be compressed respectively compressed and to be decompressed data - interpreted as ```uint8_t``` - as well as the number of logical input values.
 
-### Implemented Algorithms
+### Implemented Algorithms <a name="ImplementedAlgorithms"></a>
 
-## Implementing own Algorithms
-In this section, you will see, where to find already implemented lightweight compression formats,how to specify a lightweight compression format with the LCTL
-Let's start with the example algorithm for a static bitpacking.
+Already implemented formats can be found in ```LCTL/formats```. At the moment, there exists a specification for delta encoding as well as some specifications for Bitpacking with and without a FOR. Each custom format should be included in ```LCTL/formats/formats.h```. 
 
+---
+** Note **
 
-### Collate Concept Templates <a name="CollateConceptTemplates"></a>
+At the moment, there exists some restrictions to define a custom format. For blockwise formats (if the output of the outer tokenizer is subdivided by a second tokenizer), each new compressed block starts aligned corrresponding to ```compressedbase_t```. For formats dealing with single values, each single value starts aligned corrresponding to ```compressedbase_t```. This fact has concidered by using the preprocessor variable ```LCTL_ALIGNED``` in the (outer) combiner. This is also the reason, why bitpacking has to be specified with nested data subdivision.
+
+---
 
 ### Calculation Templates <a name="CalculationTemplates"></a>
 
