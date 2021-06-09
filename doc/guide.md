@@ -314,9 +314,12 @@ Second, we will explain the translation process to compression and decompression
 </p>
 
 ## The LCTL Language Implementation <a name="TheLanguageImplementation"></a>
+
 In this section, we will understand the grammar of the used LCTL language, understand the project structure for already implemented algorithms and understand the implementation of the example format for Static Pitpacking.
-### The Language Grammar 
-All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/collate```. One of the two files is named ```Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
+
+### The Language Grammar and Runtime Connection <a name="TheLanguageGrammarAndRuntimeConnection"></a>
+
+All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/collate```. One of the two files is named ```LCTL/collate/Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
 
 ```cpp
 template<
@@ -330,7 +333,9 @@ template<
 
 which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here.
 
-It looks a little different with the file ```Algorithm.h``` containing only a wrapper struct named ```Algorithm```, which is the entry point for data compression and decompression at runtime. It starts with the following lines:
+### Transformation CHain
+
+Regarding to functionality, it looks a little different with the file ```LCTL/collate/Algorithm.h``` containing only a wrapper struct named ```Algorithm```, which is the entry point for data compression and decompression at runtime. It starts with the following lines:
 
 ```cpp
 template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
