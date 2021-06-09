@@ -14,7 +14,7 @@ using namespace LCTL;
  * 
  * Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
-#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 8 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <=64 && BITWIDTH >= 1 && BITWIDTH <= 64)
+#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 8 && COMPRESSEDBASE >= 64 && COMPRESSEDBASE <=64 && BITWIDTH >= 6 && BITWIDTH <= 8)
 /* 
  * Dynamic Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and maximal bitwidth for datagenerator BITWIDTH
  */
@@ -25,9 +25,12 @@ using namespace LCTL;
  */
 #define REF_STATFORSTATBP 2
 #define CRITERION_STATFORSTATBP(COMPRESSEDBASE, BASE, BITWIDTH, UPPER) (BASE == 0 && COMPRESSEDBASE == 16 && BITWIDTH >=2 && BITWIDTH <= 2 && UPPER - REF_STATFORSTATBP >= 0 )
-/*
- * Dynamic Bitpackings
- */
+
+
+template <typename, typename, uint64_t, size_t, typename>
+struct testInfo;
+template<typename, uint64_t, uint64_t, size_t, bool>
+struct dataGenerator;
 
 /**
  * @brief Counts the number of applied correctness tests
@@ -46,10 +49,6 @@ unsigned numTests = 0;
  */
 unsigned numPassedTest = 0;
 
-/**
- *  @brief multiple of neccessary amount of data
- */
-const size_t countInLog = 5;
 
 /**
  * @brief Generates test data, compresses and decompresses the data, and validates, if the decompression  results in the original test data
@@ -89,65 +88,56 @@ struct testcaseCorrectness {
    */
   static void apply() 
   {
-    const char * n = name_t::GetString(); /* get name of the compression format */
-    /* prints information about the current test */
-    std::cout << ++numTests <<
-      ". Test \"" <<
-      n <<
-      "\" (" <<
-      typeString.at( * typeid(base_t).name()) <<
-      "/" <<
-      typeString.at( * typeid(compressedbase_t).name()) <<
-      ")\n" << 
-      "  Number of Values:     " <<  countInLog_t << 
-      "\n  Maximal bitwidth:     " << 64 - __builtin_clzl(upper_t) <<
-      std::endl;
-    /* new data distribution and generation of a data array */
-    std::uniform_int_distribution < base_t > distr((base_t) lower_t, (base_t) upper_t);
-    base_t * in = create_array < base_t > (countInLog_t, distr);
-    /* if data has to be sorted, interpret each value except the first as the deifference to its predecessor: encode the values */
-    if (isSorted_t) {
-      for (int i = 0; i < countInLog_t; i++)
-        in [i + 1] = in [i] + in [i + 1];
-    }
-    
-    /* memory region to store compresed values */
+    testInfo<base_t, compressedbase_t, upper_t, countInLog_t, name_t>::print();
+    base_t * in = dataGenerator<base_t, lower_t, upper_t, countInLog_t, isSorted_t>::create();
+    /* memory region to store compressed values */
     compressedbase_t * compressedMemoryRegion = (compressedbase_t * ) malloc(countInLog_t * sizeof(base_t) * 2);
     /* memory region to store decompressed values */
     base_t * decompressedMemoryRegion = (base_t * ) malloc(countInLog_t * sizeof(base_t) * 2);
 
     struct timespec beginCompression, endCompression, beginDecompression, endDecompression; 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &beginCompression);
+    
     /* data compression, size of compressed data is stored in bytes */
     size_t sizeCompressedInBytes = format_t::compress(
       reinterpret_cast < const uint8_t * > (in),
       countInLog_t,
       reinterpret_cast < uint8_t * & > (compressedMemoryRegion)
     );
+    
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endCompression);
-    long secondsCompression = endCompression.tv_sec - beginCompression.tv_sec;
-    long nanosecondsCompression = endCompression.tv_nsec - beginCompression.tv_nsec;
-    double elapsedCompression = secondsCompression + nanosecondsCompression*1e-9;
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &beginDecompression);
+    
     /* data decompression, size of decompressed data is stored in bytes */
     size_t sizeDecompressedInBytes = format_t::decompress(reinterpret_cast <
       const uint8_t * > (compressedMemoryRegion), countInLog_t, reinterpret_cast < uint8_t * & > (decompressedMemoryRegion));
+    
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endDecompression);
+    
+    long secondsCompression = endCompression.tv_sec - beginCompression.tv_sec;
+    long nanosecondsCompression = endCompression.tv_nsec - beginCompression.tv_nsec;
+    double elapsedCompression = secondsCompression + nanosecondsCompression*1e-9;
+    
     long secondsDecompression = endDecompression.tv_sec - beginDecompression.tv_sec;
     long nanosecondsDecompression = endDecompression.tv_nsec - beginDecompression.tv_nsec;
     double elapsedDecompression = secondsDecompression + nanosecondsDecompression*1e-9;
-
-    /* first test: same sizes of uncompressed and decompressed values */
-    bool passed = (countInLog_t * sizeof(base_t) == sizeDecompressedInBytes);
-
+    
+    
 #   if LCTL_VERBOSETEST
       /* print the three sizes and if the algorithm passed or failed the test */
       std::cout << "  Uncompressed Size:\t" << countInLog_t * sizeof(base_t) << " Bytes\n";
       std::cout << "  Compressed Size:\t" << sizeCompressedInBytes << " Bytes\n";
       std::cout << "  Decompressed size:\t" << sizeDecompressedInBytes << " Bytes\n";
+#   endif
+
+    /* first test: same sizes of uncompressed and decompressed values */
+    bool passed = (countInLog_t * sizeof(base_t) == sizeDecompressedInBytes);
+    
+#   if LCTL_VERBOSETEST
       if (passed) std::cout << "\t\033[32m*** MATCH (Sizes) ***\033[0m\n";
-#  endif
+#   endif
+
     if (!passed) std::cout << "\t\033[31m*** FAIL (Sizes) ***\033[0m\n"; 
     /* test, if all corresponding uncompressed and decompressed values are equal*/
     for (int i = 0; i < countInLog_t && i < sizeDecompressedInBytes; i++) {
@@ -188,6 +178,11 @@ struct testcaseCorrectness {
 };
 
 int main(int argc, char ** argv) {
+  
+  /**
+   *  @brief multiple of neccessary amount of data
+   */
+  const size_t countInLog = 5;
 
   /*
    * We create a testcase for each valid combination of uncompressed input datatype, compressed datatype and bitwidth.
@@ -5115,4 +5110,38 @@ int main(int argc, char ** argv) {
     testcaseCorrectness<String<decltype("StaticBP"_tstr)>, 0, 18446744073709551615U, sizeof(uint64_t)*countInLog, false, staticbp_64_64_64>::apply();
 */
   return EXIT_SUCCESS;
+};
+
+template <typename base_t, typename compressedbase_t, uint64_t upper_t, size_t countInLog_t, typename name_t>
+struct testInfo{
+  static void print(){
+    /* prints information about the current test */
+    const char * n = name_t::GetString(); /* get name of the compression format */
+    std::cout << ++numTests <<
+      ". Test \"" <<
+      n <<
+      "\" (" <<
+      typeString.at( * typeid(base_t).name()) <<
+      "/" <<
+      typeString.at( * typeid(compressedbase_t).name()) <<
+      ")\n" << 
+      "  Number of Values:     " <<  countInLog_t << 
+      "\n  Maximal bitwidth:     " << 64 - __builtin_clzl(upper_t) <<
+      std::endl;
+  }
+};
+
+template <typename base_t, uint64_t lower_t, uint64_t upper_t, size_t countInLog_t, bool isSorted_t>
+struct dataGenerator{
+  static base_t * create(){
+    /* new data distribution and generation of a data array */
+    std::uniform_int_distribution < base_t > distr((base_t) lower_t, (base_t) upper_t);
+    base_t * in = create_array < base_t > (countInLog_t, distr);
+    /* if data has to be sorted, interpret each value except the first as the deifference to its predecessor: encode the values */
+    if (isSorted_t) {
+      for (int i = 0; i < countInLog_t; i++)
+        in [i + 1] = in [i] + in [i + 1];
+    }
+    return in;
+  }
 };
