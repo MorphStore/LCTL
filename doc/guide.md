@@ -8,22 +8,22 @@
      - [Depiction Conventions](#DepictionConventions)
      - [Conventions for Compression and Decompression Functions](#ConventionsForCompressionAndDecompressionFunctions)
      - [Example Null Suppression and Bit Shifting](#NullSuppressionandBitShifting)
- - [The Collate Metamodel](#TheCollateMetamodel)
  - [Overview](#Overview)
+     - [The Collate Metamodel](#TheCollateMetamodel)
      - [From Model to Code](#FromModeltoCode)
  - [The Language Implementation](#TheLanguageImplementation)
      - [Collate Concept Templates](#CollateConceptTemplates)
-     - [Calculation Templates](#CalculationTemplates)
+     - [Term Templates](#CalculationTemplates)
  - [The Intermediate Representation](#TheIntermediateRepresentation)
      - [Collate Intermediate Representation](#CollateIntermediateRepresentation)
-     - [Calculation Intermediate Representation](#CalculationIntermediateRepresentation)
+     - [Term Intermediate Representation](#CalculationIntermediateRepresentation)
  - [The Code Generation](#TheCodeGeneration)
  - [TVL Extension](#TVLExtension)
 
 ## Abstract <a name="Abstract"></a>
 
 Lightweight compression algorithms play an important role for in-memory data processing. Modern CPUs are equipped with SIMD instruction sets, allowing operations on multiple data at once. In recent times, some of the existing compression formats for 32- and 64-Bit integers have been adapted to vectorized data processing. To exploit new hardware capabilities, each compression format and algorithm should be adapted to different register widths. The implementation effort for different register widths and vector extensions can be dratsically reduced by the application of the TVLLib. Nevertheless the implementation effort for a large corpus of lightweight compression algorithms exceeds manual implementation approaches. 
-Instead of considering each single algorithm as a complex data encoding procedure, we use the collate metamodel as a construction kit to specify lightweight compression as well as the corresponding decompresion algorithms. Each algorithm is implemented as a nested C++ template, such that compression as well a decompression code is generated at compile time ans exploits hardware capabilities.
+Instead of considering each single algorithm as a complex data encoding procedure, we use the collate metamodel as a construction kit to specify lightweight compression as well as the corresponding decomprsesion algorithms. Each algorithm is implemented as a nested C++ template, such that compression as well a decompression code is generated at compile time ans exploits hardware capabilities.
 At the moment our approach is restricted to non-vectorized code. Nevertheless, we specified and evaluated hundreds of algorithm models in correctness and processing times.
 This approach of code generation for lightweight compression and decompression can be used for a simple integration of data formats suitable to hardware-tailored processing of your specific data with its inherent characteristics.
 
@@ -232,7 +232,11 @@ A slightly different implementation avoids the separation of the parts of the sp
 This in never used in current implementations. Possibly, because that this is only possible vor scalar processing, but not for SIMD programming.
 We don't used this for this reason and, because we are dealing with template datatypes and there we have no uint128_t datatype for uint64_t data.
 
-## The Collate Metamodel <a name="TheCollateMetamodel"></a>
+## Overview <a name="Overview"></a>
+
+At this point 
+
+### The Collate Metamodel <a name="TheCollateMetamodel"></a>
 
 The metamodel is described in some scientific papers, i. e. in
 ["Model-Driven Integration of CompressionAlgorithms in Column-Store Database Systems"](http://ceur-ws.org/Vol-1670/paper-18.pdf)<sup>3</sup> (with a prehistoric implementation in octave) and in
@@ -254,21 +258,19 @@ In addition to these individual concepts, the next figure illustrates the intera
 
 In this figure, a simple case with only one pair of Parameter Calculator and Encoderis depicted and can be described as follows. The input data is first processed by a Tokenizer. Most Tokenizers need only a finite prefix of a data sequence to decide how many values to output. The rest of the sequence is used as further input for the Tokenizer and processed in the same manner (shown with a dashed line). Moreover, there are Tokenizers needing the whole (finite) input sequence to decide how to subdivide it. A second task of the Tokenizer is to decide for each output sequence which pair  of  Parameter  Calculator  and  Encoder  is  used  for  the  further  processing. Most algorithms process all data in the same way, so we need only one pair of Parameter Calculator and Encoder. Some of them distinguish several cases, so that this choice between several pairs is necessary. The finite Tokenizer output sequences serve as input for the Parameter Calculator and the Encoder. Parameters are often required for the encoding and decoding. Therefore, we defined the Parameter Calculator concept, which knows special rules (parameter  definitions) for the calculation of several parameters. Parameters can be used to store a state during data processing. This is depicted with a dashed line. Calculated parameters have a logical representation for further calculations andthe encoding of values as well as a representation at bit level, because on the one hand they are needed to calculate the encoding of values, on the other hand they have to be stored additionally to allow the decoding. The Encoder processes an atomic input, where the output of the Parameter Calculator and other parameters are additional inputs.The input is a token that cannot or shall not be subdivided anymore. In practice the Encoder mostly gets a single integer value to be mapped into a binary code. Similar to the parameter definitions, the Encoder calculates a logical representation of its input value and an encoding at bit level using functions. Finally, the Combiner arranges the encoded values and the calculated parameters for the output representation.
 
-## Overview <a name="Overview"></a>
+### From Model to Code <a name="FromModeltoCode"></a>
 
-This section will give you a short and high-level overview about the implementation approach. First, our compression format models are expressed with nested C++ templates belonging to three distinct areas of responsibilities.
+In this section, we will introduce the implementation approach in short. First, our compression format models are expressed with nested C++ templates belonging to three distinct areas of responsibilities.
 
 1. Collate area: Each algorithm consists of a 4-tuple of the four Collate templates Tokenizer, ParameterCalculator, Encoder/Recursion, and Combiner - possibly nested. At the moment, a maximal nesting depth of 2 is possible.
-2. Term area: The collate concepts contain one or more functions, which are expressed as C++ templates, two. Here, LCTL provides mainly simple arithmetic expressions and aggregations.
+2. Calculation area: The collate concepts contain one or more functions, which are expressed as C++ templates, two. Here, LCTL provides mainly simple arithmetic expressions and aggregations.
 3. Processing area: In this area all information concerning data types, processing type definitions for SIMD programming is collected in specialized C++ templates and builds the bridge to the TVLLib. Each algorithm is knows its integral input datatype as well as a processing style (a vector extension/ register width and a component size, or scalar processing).
 
-Second, we will explain the translation process to compression and decompression code in short. The next figure shows the approach. At the left, an algorithm is defined through (1) a template tree using the collate concepts, which, themselves, contain mainly functions as simple abstract syntax trees, and (2) processing information. At compile time, this template tree is transformed to an intermediate representation (in the middle of the figure). This intermediate tree is contains the general control flow which is equal for compresson and decompression. Examples for large transformations are the distinction between not unrollable loop and unrollable loops, switch cases for parameters like bitwidths, or replacements inside switch cases or unrolled loops by constant values like the number of bits to shift the input data to the left respectively to the right. You can see the last step of generating the compression or decompression code at the right. Here, the loops and case distinctions are generated, logical calculations are translated to C++ code in the case of data compression, or inverted before in the case of decompression. The generated code can be executed at run time and results in compression and decompression speeds similar to manual implementations.
+Second, we will explain the translation process to compression and decompression code in short. The next figure shows the approach. At the left, an algorithm is defined through (1) a template tree using the collate concepts, which, themselves, contain mainly functions as simple abstract syntax trees, and (2) processing information. At compile time, this template tree is transformed to an intermediate representation (in the middle of the figure). This intermediate tree is contains the general control flow which is equal for compression and decompression. Examples for large transformations are the distinctions between not unrollable loops and unrollable loops, switch cases for parameters like bitwidths, or replacements inside switch cases or unrolled loops by constant values like the number of bits to shift the input data to the left respectively to the right. You can see the last step of generating the compression or decompression code at the right. Here, the loops and case distinctions are generated, logical calculations are translated to C++ code in the case of data compression, or inverted before in the case of decompression. The generated code can be executed at run time and results in compression and decompression speeds similar to manual implementations.
 
 <p align="center">
   <img width="800" src="figs/Translation.png">
 </p>
-
-### From Model to Code <a name="FromModeltoCode"></a>
 
 ## The Language Implementation <a name="TheLanguageImplementation"></a>
 
