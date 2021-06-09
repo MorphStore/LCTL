@@ -316,16 +316,61 @@ Second, we will explain the translation process to compression and decompression
 ## The LCTL Language Implementation <a name="TheLanguageImplementation"></a>
 In this section, we will understand the grammar of the used LCTL language, understand the project structure for already implemented algorithms and understand the implementation of the example format for Static Pitpacking.
 ### The Language Grammar 
-All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/collate```. Here you find a file ```Algorithm.h```, which starts with the following lines:
+All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/collate```. One of the two files is named ```Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
 
+```cpp
+template<
+    typename tokenizer_t, 
+    typename parameterCalculator_t, 
+    typename recursion_t, 
+    typename combiner_t
+  >
+  struct Recursion{};
 ```
+
+which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here.
+
+It looks a little different with the file ```Algorithm.h``` containing only a wrapper struct named ```Algorithm```, which is the entry point for data compression and decompression at runtime. It starts with the following lines:
+
+```cpp
 template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
   struct Algorithm {
   ...
   }
 ```
 
-You can see, that each algortihm needs a processingStyle, a Recursion and and optionally an integral datatype for the input array.
+You can see, that each algorithm needs a processingStyle, a recursion and and optionally an integral datatype for the input array. The latter is only useful in the case of scalar processing. Otherwise the integral datatype for the input array is extracted from processing style and referenced by ```base_t```, whereas the possible distinct datatype used to iterate the memory region of compressed data is referenced by ```compressedbase_t```, which is implemented in the following lines:
+
+```cpp
+using base_t = typename std::conditional< 
+        true == std::is_same<inputbase_t,NIL>::value, 
+        typename processingStyle::base_t, 
+        inputbase_t
+      >::type;
+using compressedbase_t = typename processingStyle::base_t;
+```
+The compile time created intermediate representation can be found in
+
+```cpp
+using transform = typename Analyzer < Algorithm <base_t, recursion_t, compressedbase_t >> ::transform;
+```
+
+and last, but not least, we have the compression and decompression functions
+
+```cpp
+MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t compress(
+      const uint8_t * uncompressedMemoryRegion8,
+        size_t countInLog,
+        uint8_t * & compressedMemoryRegion8) 
+    { ... }
+MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t decompress(
+      const uint8_t * compressedMemoryRegion8,
+      const size_t countInLog,
+      uint8_t * & decompressedMemoryRegion8) 
+    { ... }
+```
+
+with pointers to the memory region of uncompressed and to be compressed respectively compressed and to be decompressed data - interpreted as ```uint8_t``` - as well as the number of logical input values.
 
 ### Implemented Algorithms
 
