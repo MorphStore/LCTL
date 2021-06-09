@@ -266,7 +266,7 @@ In this section, we will introduce the implementation approach in short. First, 
 2. Calculation area: The collate concepts contain one or more functions, which are expressed as C++ templates, two. Here, LCTL provides mainly simple arithmetic expressions and aggregations.
 3. Processing area: In this area all information concerning data types, processing type definitions for SIMD programming is collected in specialized C++ templates and builds the bridge to the TVLLib. Each algorithm is knows its integral input datatype as well as a processing style (a vector extension/ register width and a component size, or scalar processing).
 
-In the following you see the implementation of an example algorithm for Static Bitpacking. At this point, please only have a look at the mapping from the templates to the different areas of rsponsibilities. 
+In the following you see the implementation of an example algorithm for Static Bitpacking. At this point, please only have a look at the mapping from the templates to the different areas of responsibilities. (Sorry for highlighting it with the diff language)
 
 ```diff
 - text in red
@@ -276,28 +276,41 @@ In the following you see the implementation of an example algorithm for Static B
 @@ text in purple (and bold)@@
 ```
 
-```cpp
-template <
-  typename processingStyle_t, 
-  size_t bitwidth_t, 
-  typename inputDatatype_t = NIL
->
-using statbp = 
-{+ Algorithm +} <
-  processingStyle_t,
-  [+ Recursion +] <
-    StaticTokenizer< {- sizeof(typename processingStyle_t::base_t) * 8 -}>,
-    ParameterCalculator<>,
-    Recursion<
-      StaticTokenizer<[- 1 -]>,
-      ParameterCalculator<>,
-      Encoder<Token, Size<bitwidth_t>>,
-      Combiner<Token, LCTL_UNALIGNED>
-    >,
-    Combiner<Token, LCTL_ALIGNED>
-  >,
-  inputDatatype_t
->;
+```diff
+  template <
+!   typename processingStyle_t, 
++   size_t bitwidth_t, 
+!   typename inputDatatype_t = NIL
+  >
+  using statbp = 
+- Algorithm <
+!   processingStyle_t,
+-   Recursion <
+-     StaticTokenizer< 
++       sizeof(typename processingStyle_t::base_t) * 8
+-     >,
+-     ParameterCalculator<>,
+-     Recursion<
+-       StaticTokenizer<
++         1
+-       >,
+-       ParameterCalculator<>,
+-       Encoder<
++         Token, 
++         Size<bitwidth_t>
+-       >,
+-       Combiner<
++         Token, 
+!         LCTL_UNALIGNED
+-       >
+-     >,
+-     Combiner<
++       Token, 
++       LCTL_ALIGNED
+-     >
+-   >,
+!   inputDatatype_t
+- >;
 ```
 
 Second, we will explain the translation process to compression and decompression code in short. The next figure shows the approach. At the left, an algorithm is defined through (1) a template tree using the collate concepts, which, themselves, contain mainly functions as simple abstract syntax trees, and (2) processing information. At compile time, this template tree is transformed to an intermediate representation (in the middle of the figure). This intermediate tree is contains the general control flow which is equal for compression and decompression. Examples for large transformations are the distinctions between not unrollable loops and unrollable loops, switch cases for parameters like bitwidths, or replacements inside switch cases or unrolled loops by constant values like the number of bits to shift the input data to the left respectively to the right. You can see the last step of generating the compression or decompression code at the right. Here, the loops and case distinctions are generated, logical calculations are translated to C++ code in the case of data compression, or inverted before in the case of decompression. The generated code can be executed at run time and results in compression and decompression speeds similar to manual implementations.
