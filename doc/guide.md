@@ -234,7 +234,7 @@ We don't used this for this reason and, because we are dealing with template dat
 
 ## Overview <a name="Overview"></a>
 
-At this point 
+At this point, we first introduce the implementation-independent Collate metamodel. Afterwards we give an overview of the the iplementation approach with C++ template metaprogramming. 
 
 ### The Collate Metamodel <a name="TheCollateMetamodel"></a>
 
