@@ -266,7 +266,7 @@ In this section we describe our implementation approach called Lightweight Compr
 </p>
 
 As you can see, the LCTL consists of three layers, the langage layer, the intermediate layer, and the generated code layer. The language layer defines the template structs to specify algorithm models. The intermediate layer is used to specify the general control flow of the code, that will be generated for compression as well as decompression. The last one is the generated code layer, which contains few code fragments to read, write, and shift the uncompressed, compressed, and decompressed data and to increment pointers to input and output data.
-There is a distinction between the Collate llevel with the implementation of its concepts and the calculation level corresponding to the functions, which they contain. This distinction extends over all of the three layers. Besides, there exists a transformation chain. It first transforms an algorithm model to a general control flow aware intermediate representation and checks the Collate tree grammar. Second, it transforms this intermediate representation to executable code and does some further consistency checks.
+There is a distinction between the Collate llevel with the implementation of its concepts and the calculation level corresponding to the functions, which they contain. This distinction extends over all of the three layers. The whole stack is connected with the TVLLib. Besides, there exists a transformation chain. It first transforms an algorithm model to a general control flow aware intermediate representation and checks the Collate tree grammar. Second, it transforms this intermediate representation to executable code and does some further consistency checks.
 
 ---
 ** Note **
@@ -274,6 +274,99 @@ There is a distinction between the Collate llevel with the implementation of its
 At the moment those "checks" are done through SFINEA with template metaprogramming or compile time errors, i.e. if a used variable is not defined inside the model etc.
 
 ---
+
+## The Language Layer
+
+In this section, we explain the language layer, the Collate template definitions, the calculation template definitions, and give an example for thespecification of an algorithm.
+
+### The Collate Templates
+
+All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/collate```. One of the two files is named ```LCTL/collate/Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
+
+```cpp
+template<
+    typename tokenizer_t, 
+    typename parameterCalculator_t, 
+    typename recursion_t, 
+    typename combiner_t
+  >
+  struct Recursion{};
+```
+
+which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here.
+
+Regarding to functionality, it looks a little different with the file ```LCTL/collate/Algorithm.h``` containing only a wrapper struct named ```Algorithm```. It starts with the following lines:
+
+```cpp
+template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
+  struct Algorithm {
+  ...
+  }
+```
+
+You can see, that each algorithm needs a processingStyle, a recursion and and optionally an integral datatype for the input array. The latter is only useful in the case of scalar processing. Otherwise the integral datatype for the input array is extracted from processing style and referenced by ```base_t```, whereas the possible distinct datatype used to iterate the memory region of compressed data is referenced by ```compressedbase_t```, which is implemented in the following lines:
+
+```cpp
+using base_t = typename std::conditional< 
+        true == std::is_same<inputbase_t,NIL>::value, 
+        typename processingStyle::base_t, 
+        inputbase_t
+      >::type;
+using compressedbase_t = typename processingStyle::base_t;
+```
+
+### The Calculation Templates
+
+### Algorithm Specification Static Bitpacking
+
+The following algorithm specification results in a template Static Bitpacking, this means, that all input values of a given data type are stored with a given bitwidth and a given TVL processingStyle. All of the three parameters are templates. The format is defined for a variable number of blocks, such that each compressed block starts and ends at a word border due to ```compressedbase_t```. We also have an inner recursionimplementing the processing of single values of a whole block.
+
+The parts of the nested templates can be distinguished into three domains:
+
+1. Collate area: Each algorithm consists of a 4-tuple of the four Collate templates Tokenizer, ParameterCalculator, Encoder/Recursion, and Combiner - possibly nested. At the moment, a maximal nesting depth of 2 is possible.
+2. Calculation area: The collate concepts contain one or more functions, which are expressed as C++ templates, two. Here, LCTL provides mainly simple arithmetic expressions and aggregations.
+3. Processing area: In this area all information concerning data types, processing type definitions for SIMD programming is collected in specialized C++ templates and builds the bridge to the TVLLib. Each algorithm is knows its integral input datatype as well as a processing style (a vector extension/ register width and a component size, or scalar processing).
+
+In the following you see the implementation of an example algorithm for Static Bitpacking. At this point, please only have a look at the mapping from the templates to the different areas of responsibilities. (Sorry for highlighting it with the diff language.)
+
+```diff
+  template <
+!   typename processingStyle_t, 
++   size_t bitwidth_t, 
+!   typename inputDatatype_t = NIL
+  >
+  using statbp = 
+- Algorithm <
+!   processingStyle_t,
+-   Recursion <
+-     StaticTokenizer< 
++       sizeof(typename processingStyle_t::base_t) * 8
+-     >,
+-     ParameterCalculator<>,
+-     Recursion<
+-       StaticTokenizer<
++         1
+-       >,
+-       ParameterCalculator<>,
+-       Encoder<
++         Token, 
++         Size<bitwidth_t>
+-       >,
+-       Combiner<
++         Token, 
+!         LCTL_UNALIGNED
+-       >
+-     >,
+-     Combiner<
++       Token, 
+!       LCTL_ALIGNED
+-     >
+-   >,
+!   inputDatatype_t
+- >;
+```
+
+All templates concerning Collate concepts are highlighted in red, calculations are highlighted in green, and processing information is highlighted in orange.
 
 <!---
 ### From Model to Executable Code <a name="FromModeltoCode"></a>
