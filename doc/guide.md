@@ -262,7 +262,7 @@ In this figure, a simple case with only one pair of Parameter Calculator and Enc
 In this section we describe our implementation approach called Lightweight Compression Template Library (LCTL) for the Collate metamodel. In general, the implementation is accomplished with template metaprogramming. All algorithm model specified corresponding to the Collate metamodel are implemented as nested C++ templates and translated at compile time to executable C++ code for compression and decompression. The code can be used at runtime. is The next figure depicts a system overview over the LCTL.
 
 <p align="center">
-  <img width="900" src="figs/LCTLOverview.png">
+  <img width="900" src="figs/LCTLOverview.pdf">
 </p>
 
 <!---
