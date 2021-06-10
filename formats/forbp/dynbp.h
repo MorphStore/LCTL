@@ -5,14 +5,15 @@
  * Created on 16. März 2021, 09:24
  */
 
-#ifndef DYNBP_H
-#define DYNBP_H
+#ifndef LCTL_FORMATS_FORBP_DYNBP_H
+#define LCTL_FORMATS_FORBP_DYNBP_H
 
-#include "../../collate/Concepts.h"
-#include "../../collate/Algorithm.h"
-#include "../../lib/combiner.h"
-#include "../../lib/aggregation.h"
-#include "../../lib/literals.h"
+#include "../../language/collate/Concepts.h"
+#include "../../language/collate/Algorithm.h"
+#include "../../language/calculation/aggregation.h"
+#include "../../language/calculation/literals.h"
+#include "../../Definitions.h"
+#include "../../language/calculation/Concat.h"
 
 using namespace LCTL;
 
@@ -67,5 +68,5 @@ using dynbp = Algorithm <
 >;
 
 
-#endif /* DYNBP_H */
+#endif /* LCTL_FORMATS_FORBP_DYNBP_H */
 

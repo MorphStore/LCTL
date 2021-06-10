@@ -1,23 +1,17 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 /* 
  * File:   delta.h
- * Author: jule
+ * Author: Juliana Hildebrandt
  *
  * Created on 16. März 2021, 09:34
  */
 
-#ifndef DELTA_H
-#define DELTA_H
+#ifndef LCTL_FORMATS_DELTA_DELTA_H
+#define LCTL_FORMATS_DELTA_DELTA_H
 
-#include "../../collate/Concepts.h"
-#include "../../collate/Algorithm.h"
-#include "../../lib/arithmetics.h"
-#include "../../lib/definition.h"
+#include "../../language/collate/Concepts.h"
+#include "../../language/collate/Algorithm.h"
+#include "../../language/calculation/arithmetics.h"
+#include "../../Definitions.h"
 
 using namespace LCTL;
 
@@ -61,5 +55,5 @@ Algorithm <
   inputDatatype_t
 >; 
 
-#endif /* DELTA_H */
+#endif /* LCTL_FORMATS_DELTA_DELTA_H */
 

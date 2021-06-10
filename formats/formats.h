@@ -1,18 +1,12 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 /* 
  * File:   formats.h
- * Author: jule
+ * Author: Juliana Hildebrandt
  *
  * Created on 16. März 2021, 09:36
  */
 
-#ifndef FORMATS_H
-#define FORMATS_H
+#ifndef LCTL_FORMATS_FORMATS_H
+#define LCTL_FORMATS_FORMATS_H
 
 #include "forbp/dynbp.h"
 #include "forbp/dynforbp.h"
@@ -503,5 +497,5 @@
 #include "../compare/staticbp_64_64_63.h"
 #include "../compare/staticbp_64_64_64.h"*/
 
-#endif /* FORMATS_H */
+#endif /* LCTL_FORMATS_FORMATS_H */
 

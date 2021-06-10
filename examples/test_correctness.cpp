@@ -1,7 +1,7 @@
 
 #include "../Utils.h"
 #include "../formats/formats.h"
-#include "../lib/definition.h"
+#include "../Definitions.h"
 #include <header/preprocessor.h>
 #include <type_traits>
 #include <cstdlib>

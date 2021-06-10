@@ -1,23 +1,19 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 /* 
  * File:   statfordynbp.h
- * Author: jule
+ * Author: Juliana Hildebrandt
  *
  * Created on 28. September 2020, 13:10
  */
 
-#ifndef STATFORDYNBP_H
-#define STATFORDYNBP_H
+#ifndef LCTL_FORMATS_FORBP_STATFORDYNBP_H
+#define LCTL_FORMATS_FORBP_STATFORDYNBP_H
 
-#include "../../collate/Concepts.h"
-#include "../../lib/combiner.h"
-#include "../../lib/aggregation.h"
-#include "../../lib/literals.h"
+#include "../../language/collate/Algorithm.h"
+#include "../../Definitions.h"
+#include "../../language/collate/Concepts.h"
+#include "../../language/calculation/Concat.h"
+#include "../../language/calculation/aggregation.h"
+#include "../../language/calculation/literals.h"
 
 using namespace LCTL;
 
@@ -72,5 +68,5 @@ using statfordynbp = Algorithm <
   inputDatatype_t
 >;
 
-#endif /* STATFORDYNBP_H */
+#endif /* LCTL_FORMATS_FORBP_STATFORDYNBP_H */
 

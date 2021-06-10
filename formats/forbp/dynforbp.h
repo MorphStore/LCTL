@@ -1,23 +1,19 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 /* 
  * File:   dynforbp.h
- * Author: jule
+ * Author: Juliana Hildebrandt
  *
  * Created on 16. März 2021, 09:22
  */
 
-#ifndef DYNFORBP_H
-#define DYNFORBP_H
+#ifndef LCTL_FORMATS_FORBP_DYNFORBP_H
+#define LCTL_FORMATS_FORBP_DYNFORBP_H
 
-#include "../../collate/Concepts.h"
-#include "../../lib/combiner.h"
-#include "../../lib/aggregation.h"
-#include "../../lib/literals.h"
+#include "../../language/collate/Algorithm.h"
+#include "../../Definitions.h"
+#include "../../language/collate/Concepts.h"
+#include "../../language/calculation/Concat.h"
+#include "../../language/calculation/aggregation.h"
+#include "../../language/calculation/literals.h"
 
 using namespace LCTL;
 
@@ -66,5 +62,5 @@ using dynforbp =
     inputDatatype_t
   >;
 
-#endif /* DYNFORBP_H */
+#endif /* LCTL_FORMATS_FORBP_DYNFORBP_H */
 

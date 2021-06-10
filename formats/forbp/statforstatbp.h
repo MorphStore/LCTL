@@ -1,22 +1,17 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 /* 
  * File:   statforstatbp.h
- * Author: jule
+ * Author: Juliana Hildebrandt
  *
  * Created on 16. März 2021, 09:27
  */
 
-#ifndef STATFORSTATBP_H
-#define STATFORSTATBP_H
+#ifndef LCTL_FORMATS_FORBP_STATFORSTATBP_H
+#define LCTL_FORMATS_FORBP_STATFORSTATBP_H
 
-#include "../../collate/Concepts.h"
-#include "../../collate/Algorithm.h"
-#include "../../lib/arithmetics.h"
+#include "../../language/collate/Algorithm.h"
+#include "../../Definitions.h"
+#include "../../language/collate/Concepts.h"
+#include "../../language/calculation/arithmetics.h"
 #include <type_traits>
 
 using namespace LCTL;
@@ -59,5 +54,5 @@ Algorithm <
 
 
 
-#endif /* STATFORSTATBP_H */
+#endif /* LCTL_FORMATS_FORBP_STATFORSTATBP_H */
 

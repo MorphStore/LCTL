@@ -5,12 +5,14 @@
  * Created on 15. September 2020, 08:47
  */
 
-#ifndef STATBP_H
-#define STATBP_H
+#ifndef LCTL_FORMATS_FORBP_STATBP_H
+#define LCTL_FORMATS_FORBP_STATBP_H
 
-#include "../../collate/Concepts.h"
-#include "../../collate/Algorithm.h"
-#include "../../lib/arithmetics.h"
+
+#include "../../language/collate/Algorithm.h"
+#include "../../Definitions.h"
+#include "../../language/collate/Concepts.h"
+#include "../../language/calculation/arithmetics.h"
 
 using namespace LCTL; 
 
@@ -52,5 +54,5 @@ Algorithm <
 >; 
 
 
-#endif /* STATBP_H */
+#endif /* LCTL_FORMATS_FORBP_STATBP_H */
 
