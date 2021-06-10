@@ -258,6 +258,14 @@ In addition to these individual concepts, the next figure illustrates the intera
 
 In this figure, a simple case with only one pair of Parameter Calculator and Encoderis depicted and can be described as follows. The input data is first processed by a Tokenizer. Most Tokenizers need only a finite prefix of a data sequence to decide how many values to output. The rest of the sequence is used as further input for the Tokenizer and processed in the same manner (shown with a dashed line). Moreover, there are Tokenizers needing the whole (finite) input sequence to decide how to subdivide it. A second task of the Tokenizer is to decide for each output sequence which pair  of  Parameter  Calculator  and  Encoder  is  used  for  the  further  processing. Most algorithms process all data in the same way, so we need only one pair of Parameter Calculator and Encoder. Some of them distinguish several cases, so that this choice between several pairs is necessary. The finite Tokenizer output sequences serve as input for the Parameter Calculator and the Encoder. Parameters are often required for the encoding and decoding. Therefore, we defined the Parameter Calculator concept, which knows special rules (parameter  definitions) for the calculation of several parameters. Parameters can be used to store a state during data processing. This is depicted with a dashed line. Calculated parameters have a logical representation for further calculations andthe encoding of values as well as a representation at bit level, because on the one hand they are needed to calculate the encoding of values, on the other hand they have to be stored additionally to allow the decoding. The Encoder processes an atomic input, where the output of the Parameter Calculator and other parameters are additional inputs.The input is a token that cannot or shall not be subdivided anymore. In practice the Encoder mostly gets a single integer value to be mapped into a binary code. Similar to the parameter definitions, the Encoder calculates a logical representation of its input value and an encoding at bit level using functions. Finally, the Combiner arranges the encoded values and the calculated parameters for the output representation.
 
+### The Lightweight Compression Template Library <a name="TheLightweightCompressionTemplateLibrary"></a>
+In this section we describe our implementation approach called Lightweight Compression Template Library (LCTL) for the Collate metamodel. In general, the implementation is accomplished with template metaprogramming. All algorithm model specified corresponding to the Collate metamodel are implemented as nested C++ templates and translated at compile time to executable C++ code for compression and decompression. The code can be used at runtime. is The next figure depicts a system overview over the LCTL.
+
+<p align="center">
+  <img width="900" src="figs/LCTLOverview.png">
+</p>
+
+<!---
 ### From Model to Executable Code <a name="FromModeltoCode"></a>
 
 In this section, we will introduce the implementation approach in short. First, our compression format models are expressed with nested C++ templates belonging to three distinct areas of responsibilities.
@@ -397,7 +405,7 @@ At the moment, there exists some restrictions to define a custom format. For blo
 ### Calculation Intermediate Representation <a name="CalculationIntermediateRepresentation"></a>
 
 ## The Code Generation <a name="TheCodeGeneration"></a>
-
+--->
 ## TVL Extension <a name="TVLExtension"></a>
 
 ## References
