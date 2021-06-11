@@ -17,9 +17,9 @@
      - [Algorithm Specification Static Bitpacking](#AlgorithmSpecificationStaticBitpacking)
  - [The Intermediate Layer](#TheIntermediateLayer)
      - [Procedure Layer](#ProcedureLayer) 
-     - [Known and Unknown Parameter Values](#KnownandUnknownParameterValues)
-     - [Known and Unknwon Tokenizers](#KnownandUnknwonTokenizers)
-     - [Loop Recursions and Static Recursions](#LoopRecursionsandStaticRecursions)
+         - [Known and Unknown Parameter Values](#KnownandUnknownParameterValues)
+         - [Known and Unknwon Tokenizers](#KnownandUnknwonTokenizers)
+         - [Loop Recursions and Static Recursions](#LoopRecursionsandStaticRecursions)
  
 
 ## Abstract <a name="Abstract"></a>
