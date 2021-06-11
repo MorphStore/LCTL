@@ -10,15 +10,12 @@
      - [Example Null Suppression and Bit Shifting](#NullSuppressionandBitShifting)
  - [Overview](#Overview)
      - [The Collate Metamodel](#TheCollateMetamodel)
-     - [From Model to Code](#FromModeltoCode)
- - [The Language Implementation](#TheLanguageImplementation)
-     - [Collate Concept Templates](#CollateConceptTemplates)
-     - [Term Templates](#CalculationTemplates)
- - [The Intermediate Representation](#TheIntermediateRepresentation)
-     - [Collate Intermediate Representation](#CollateIntermediateRepresentation)
-     - [Term Intermediate Representation](#CalculationIntermediateRepresentation)
- - [The Code Generation](#TheCodeGeneration)
- - [TVL Extension](#TVLExtension)
+     - [The Lightweight Compression Template Library](#TheLightweightCompressionTemplateLibrary)
+ - [The Language Layer](#TheLanguageLayer)
+     - [The Collate Templates](#TheCollateTemplates)  
+     - [The Calculation Templates](#TheCalculationTemplates)
+     - [Algorithm Specification Static Bitpacking](#AlgorithmSpecificationStaticBitpacking)
+ 
 
 ## Abstract <a name="Abstract"></a>
 
@@ -266,20 +263,20 @@ In this section we describe our implementation approach called Lightweight Compr
 </p>
 
 As you can see, the LCTL consists of three layers, the langage layer, the intermediate layer, and the generated code layer. The language layer defines the template structs to specify algorithm models. The intermediate layer is used to specify the general control flow of the code, that will be generated for compression as well as decompression. The last one is the generated code layer, which contains few code fragments to read, write, and shift the uncompressed, compressed, and decompressed data and to increment pointers to input and output data.
-There is a distinction between the Collate llevel with the implementation of its concepts and the calculation level corresponding to the functions, which they contain. This distinction extends over all of the three layers. The whole stack is connected with the TVLLib. Besides, there exists a transformation chain. It first transforms an algorithm model to a general control flow aware intermediate representation and checks the Collate tree grammar. Second, it transforms this intermediate representation to executable code and does some further consistency checks.
+There is a distinction between the Collate level with the implementation of its concepts and the calculation level corresponding to the functions contained inside. This distinction extends over all of the three layers. The whole stack is connected with the TVLLib. Besides, there exists a transformation chain. It first transforms an algorithm model to a general control flow aware intermediate representation and checks the Collate tree grammar. Second, it transforms this intermediate representation to executable code and does some further consistency checks.
 
 ---
 ** Note **
 
-At the moment those "checks" are done through SFINEA with template metaprogramming or compile time errors, i.e. if a used variable is not defined inside the model etc.
+Currently, there is no functional connection between LCTL and TVL.
 
 ---
 
-## The Language Layer
+## The Language Layer <a name="TheLanguageLayer"></a>
 
 In this section, we explain the language layer, the Collate template definitions, the calculation template definitions, and give an example for thespecification of an algorithm.
 
-### The Collate Templates
+### The Collate Templates <a name="TheCollateTemplates"></a>
 
 All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/language```. One of the two files is named ```LCTL/language/Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
 
@@ -315,11 +312,11 @@ using base_t = typename std::conditional<
 using compressedbase_t = typename processingStyle::base_t;
 ```
 
-### The Calculation Templates
+### The Calculation Templates <a name="TheCalculationTemplates"></a>
 
 Everything else of the language layer except the Collate concepts can be found in the folder ```LCTL/language/calculation```. Here, literals like ```Token```, arithmetic operations, aggregations for parameter calculations and combining functions are defined. If possible, those templates are reused in the intermediate representation.
 
-### Algorithm Specification Static Bitpacking
+### Algorithm Specification Static Bitpacking <a name="AlgorithmSpecificationStaticBitpacking"></a>
 
 The following algorithm specification results in a template Static Bitpacking, this means, that all input values of a given data type are stored with a given bitwidth and a given TVL processingStyle. All of the three parameters are templates. The format is defined for a variable number of blocks, such that each compressed block starts and ends at a word border due to ```compressedbase_t```. We also have an inner recursionimplementing the processing of single values of a whole block.
 
