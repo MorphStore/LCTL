@@ -394,13 +394,18 @@ template <
 and distinguishes by a name, the logical calculation rule, the rule to calculate the bitwidth (or a number) and a child node represenating further algorithmic steps. In the case of bitwidth determination, this calculations are done at runtime to, but there is a difference. For the parameter assignment only a small set of different bitwidths has to be considered. In manual compression implementations, often a switch case is used. During the code generation step, we will recreate this kind of control flow with TMP. The used concept here is ```SwitchvalueIR```, with a list of child nodes for each case. Each child node is implemented as a 
 ```KnownValueIR```, because inside the special case, the value, i.e. the bitwidth is known at compile time. besides, there exists an ```AdaptiveValueIR``` wrapper for adaptive values.
 
-#### Known and Unknwon Tokenizers <a name="KnownandUnknwonTokenizers"></a>
+#### Known and Unknown Tokenizers <a name="KnownandUnknwonTokenizers"></a>
 
 We have a similar situation for tokenizers. At the moment, only static tokenizers ouputting a compile time known number of integral values are supported. Thus, we use a ```KnownTokenizerIR```. There also exists a template ```UnknownTokenizerIR```. For case distinctions, i.e. for Simple formats, the ```SwitchTokenizerIR``` might be usesful.
 
 #### Loop Recursions and Static Recursions <a name="LoopRecursionsandStaticRecursions"></a>
 
 As already mentioned, to compress and to decompress a variable number of values, we always need at least one loop. Thus, the outer Recursion can never be unrolled and has to be a ```LoopRecursionIR```. In the example of the manual implementation of Bitpacking, we unrolled the inner loop for each 32 input values. Here a ```StaticRecursionIR``` should be used.
+
+### Intermediate Calculation Templates <a name="IntermediateCalculationTemplates"></a>
+
+In the current approach, most calculations have not to be somehow converted for the intermediate representation. In example, all arithmetic operations like adding and subtracting values are used like in the language layer. One decision is to enrich aggregations with a compiletime known tokensize, such that a loop unrolling can be done. The code can be found in ```LCTL/intermediate/calculation/aggregations```.
+
 
 <!---
 
