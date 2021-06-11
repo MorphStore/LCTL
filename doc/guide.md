@@ -15,6 +15,11 @@
      - [The Collate Templates](#TheCollateTemplates)  
      - [The Calculation Templates](#TheCalculationTemplates)
      - [Algorithm Specification Static Bitpacking](#AlgorithmSpecificationStaticBitpacking)
+ - [The Intermediate Layer](#TheIntermediateLayer)
+     - [Procedure Layer](#ProcedureLayer) 
+     - [Known and Unknown Parameter Values](#KnownandUnknownParameterValues)
+     - [Known and Unknwon Tokenizers](#KnownandUnknwonTokenizers)
+     - [Loop Recursions and Static Recursions](#LoopRecursionsandStaticRecursions)
  
 
 ## Abstract <a name="Abstract"></a>
@@ -274,11 +279,11 @@ Currently, there is no functional connection between LCTL and TVL.
 
 ## The Language Layer <a name="TheLanguageLayer"></a>
 
-In this section, we explain the language layer, the Collate template definitions, the calculation template definitions, and give an example for thespecification of an algorithm.
+In this section, we explain the language layer, the Collate template definitions, the calculation template definitions, and give an example for the specification of an algorithm.
 
 ### The Collate Templates <a name="TheCollateTemplates"></a>
 
-All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/language```. One of the two files is named ```LCTL/language/Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
+All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/language```. One of the two files is named ```LCTL/language/Concepts.h```. It contains all Collate concepts as template structs. An example is the Recursion struct
 
 ```cpp
 template<
@@ -290,13 +295,13 @@ template<
   struct Recursion{};
 ```
 
-which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here.
+which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here. If possible, those templates are reused for the intermediate representation.
 
-Regarding to functionality, it looks a little different with the file ```LCTL/language/Algorithm.h``` containing only a wrapper struct named ```Algorithm```. It starts with the following lines:
+Regarding to functionality, it looks a little different with the file ```LCTL/language/Format.h``` containing only a wrapper struct named ```Format```. It starts with the following lines:
 
 ```cpp
 template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
-  struct Algorithm {
+  struct Format {
   ...
   }
 ```
@@ -335,7 +340,7 @@ In the following you see the implementation of an example algorithm for Static B
 !   typename inputDatatype_t = NIL
   >
   using statbp = 
-- Algorithm <
+- Format <
 !   processingStyle_t,
 -   Recursion <
 -     StaticTokenizer< 
@@ -366,62 +371,39 @@ In the following you see the implementation of an example algorithm for Static B
 ```
 
 All templates concerning Collate concepts are highlighted in red, calculations are highlighted in green, and processing information is highlighted in orange.
+
+## The Intermediate Layer <a name="TheIntermediateLayer"></a>
+
+The intermediate layer serves as a basic structure of the compression as well as the decompression function. At this point, we will only define the used templates and explain why they are used, not the transformation from the model to the intermediate representation. We follow the inroduced distincation between the COllate and the calculation level. The code is situated in ```LCTL/intermediate/```.
+
+### Procedure Templates <a name="ProcedureTemplates"></a>
+
+The code for the modified Collate templates can be found ```LCTL/intermediate/procedure/Concepts.h```. Each concept introduced here has the suffix ```IR``` (for intermediate representation).
+
+#### Known and Unknown Parameter Values <a name="KnownandUnknownParameterValues"></a>
+
+During compression, parameters like maxima and minima are calculated at a special point in the algorithm and thus only known at runtime, not at compile time. Those parameters are considered as unknown. The used concept is
+```cpp
+template <
+    typename name, 
+    typename logicalValue_t, 
+    typename numberOfBits_t, 
+    typename next_t>
+  struct UnknownValueIR{};
+```  
+and distinguishes by a name, the logical calculation rule, the rule to calculate the bitwidth (or a number) and a child node represenating further algorithmic steps. In the case of bitwidth determination, this calculations are done at runtime to, but there is a difference. For the parameter assignment only a small set of different bitwidths has to be considered. In manual compression implementations, often a switch case is used. During the code generation step, we will recreate this kind of control flow with TMP. The used concept here is ```SwitchvalueIR```, with a list of child nodes for each case. Each child node is implemented as a 
+```KnownValueIR```, because inside the special case, the value, i.e. the bitwidth is known at compile time. besides, there exists an ```AdaptiveValueIR``` wrapper for adaptive values.
+
+#### Known and Unknwon Tokenizers <a name="KnownandUnknwonTokenizers"></a>
+
+We have a similar situation for tokenizers. At the moment, only static tokenizers ouputting a compile time known number of integral values are supported. Thus, we use a ```KnownTokenizerIR```. There also exists a template ```UnknownTokenizerIR```. For case distinctions, i.e. for Simple formats, the ```SwitchTokenizerIR``` might be usesful.
+
+#### Loop Recursions and Static Recursions <a name="LoopRecursionsandStaticRecursions"></a>
+
+As already mentioned, to compress and to decompress a variable number of values, we always need at least one loop. Thus, the outer Recursion can never be unrolled and has to be a ```LoopRecursionIR```. In the example of the manual implementation of Bitpacking, we unrolled the inner loop for each 32 input values. Here a ```StaticRecursionIR``` should be used.
 
 <!---
-### From Model to Executable Code <a name="FromModeltoCode"></a>
 
-In this section, we will introduce the implementation approach in short. First, our compression format models are expressed with nested C++ templates belonging to three distinct areas of responsibilities.
-
-1. Collate area: Each algorithm consists of a 4-tuple of the four Collate templates Tokenizer, ParameterCalculator, Encoder/Recursion, and Combiner - possibly nested. At the moment, a maximal nesting depth of 2 is possible.
-2. Calculation area: The collate concepts contain one or more functions, which are expressed as C++ templates, two. Here, LCTL provides mainly simple arithmetic expressions and aggregations.
-3. Processing area: In this area all information concerning data types, processing type definitions for SIMD programming is collected in specialized C++ templates and builds the bridge to the TVLLib. Each algorithm is knows its integral input datatype as well as a processing style (a vector extension/ register width and a component size, or scalar processing).
-
-In the following you see the implementation of an example algorithm for Static Bitpacking. At this point, please only have a look at the mapping from the templates to the different areas of responsibilities. (Sorry for highlighting it with the diff language.)
-
-```diff
-  template <
-!   typename processingStyle_t, 
-+   size_t bitwidth_t, 
-!   typename inputDatatype_t = NIL
-  >
-  using statbp = 
-- Algorithm <
-!   processingStyle_t,
--   Recursion <
--     StaticTokenizer< 
-+       sizeof(typename processingStyle_t::base_t) * 8
--     >,
--     ParameterCalculator<>,
--     Recursion<
--       StaticTokenizer<
-+         1
--       >,
--       ParameterCalculator<>,
--       Encoder<
-+         Token, 
-+         Size<bitwidth_t>
--       >,
--       Combiner<
-+         Token, 
-!         LCTL_UNALIGNED
--       >
--     >,
--     Combiner<
-+       Token, 
-!       LCTL_ALIGNED
--     >
--   >,
-!   inputDatatype_t
-- >;
-```
-
-All templates concerning Collate concepts are highlighted in red, calculations are highlighted in green, and processing information is highlighted in orange.
-
-Second, we will explain the translation process to compression and decompression code in short. The next figure shows the approach. At the left, an algorithm is defined through (1) a template tree using the collate concepts, which, themselves, contain mainly functions as simple abstract syntax trees, and (2) processing information. At compile time, this template tree is transformed to an intermediate representation (in the middle of the figure). This intermediate tree is contains the general control flow which is equal for compression and decompression. Examples for large transformations are the distinctions between not unrollable loops and unrollable loops, switch cases for parameters like bitwidths, or replacements inside switch cases or unrolled loops by constant values like the number of bits to shift the input data to the left respectively to the right. You can see the last step of generating the compression or decompression code at the right. Here, the loops and case distinctions are generated, logical calculations are translated to C++ code in the case of data compression, or inverted before in the case of decompression. The generated code can be executed at run time and results in compression and decompression speeds similar to manual implementations.
-
-<p align="center">
-  <img width="800" src="figs/Translation.png">
-</p>
 
 ## The LCTL Frontend and Middle Layer <a name="TheLanguageImplementation"></a>
 
@@ -429,7 +411,7 @@ In this section, we will understand the grammar of the used LCTL language, under
 
 ### Language Implementation: Collate Concept Templates <a name="CollateConceptTemplates"></a>
 
-All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/collate```. One of the two files is named ```LCTL/collate/Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
+All templates to specify a format (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/collate```. One of the two files is named ```LCTL/collate/Concepts.h```. It contains all Collate concepts as template structs. And example is the Recursion struct
 
 ```cpp
 template<
@@ -445,11 +427,11 @@ which must be defined by four templates corresponding to the Collate concepts to
 
 ### Middle Layer - Transformation Chain <a name="TransformationChain"></a>
 
-Regarding to functionality, it looks a little different with the file ```LCTL/collate/Algorithm.h``` containing only a wrapper struct named ```Algorithm```, which is the entry point for data compression and decompression at runtime. It starts with the following lines:
+Regarding to functionality, it looks a little different with the file ```LCTL/collate/Format.h``` containing only a wrapper struct named ```Formaz```, which is the entry point for data compression and decompression at runtime. It starts with the following lines:
 
 ```cpp
 template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
-  struct Algorithm {
+  struct Format {
   ...
   }
 ```
