@@ -320,7 +320,7 @@ using compressedbase_t = typename processingStyle::base_t;
 
 ### The Calculation Templates <a name="TheCalculationTemplates"></a>
 
-Everything else of the language layer except the Collate concepts can be found in the folder ```LCTL/language/calculation```. Here, literals like ```Token```, arithmetic operations, aggregations for parameter calculations and combining functions are defined. If possible, those templates are reused in the intermediate representation.
+Everything else of the language layer except the Collate concepts can be found in the folder ```LCTL/language/calculation/```. Here, literals like ```Token```, arithmetic operations, aggregations for parameter calculations and combining functions are defined. If possible, those templates are reused in the intermediate representation.
 
 ### Algorithm Specification Static Bitpacking <a name="AlgorithmSpecificationStaticBitpacking"></a>
 
@@ -405,8 +405,11 @@ As already mentioned, to compress and to decompress a variable number of values,
 
 ### Intermediate Calculation Templates <a name="IntermediateCalculationTemplates"></a>
 
-In the current approach, most calculations have not to be somehow converted for the intermediate representation. In example, all arithmetic operations like adding and subtracting values are used like in the language layer. One decision is to enrich aggregations with a compiletime known tokensize, such that a loop unrolling can be done. The code can be found in ```LCTL/intermediate/calculation/aggregations```.
+In the current approach, most calculations have not to be somehow converted for the intermediate representation. In example, all arithmetic operations like adding and subtracting values are used like in the language layer. One decision is to enrich aggregations with a compiletime known tokensize, such that a loop unrolling can be done. The code can be found in ```LCTL/intermediate/calculation/aggregation.h```.
 
+## Generated Code Layer
+
+The layer of generated code is not so heavily populated by different templated structs. What is done here inbetween the control flow and logical calculations is to read and to write data, whereas writing to the compressed output in the case of compression often has a connection with left shifts and reading from the compressed input in the case of decompression often has a connection with left shifts. Here, write and operations use shift templates. The template structs used here can be found in ```LCTL/codegeneration/``` in the files ```Write.h```, ```LeftShift.h```, and ```RightShift.h```. Besides, incrementations are done with template structs defined in file ```Increment.h```.
 
 <!---
 
