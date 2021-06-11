@@ -20,6 +20,7 @@
          - [Known and Unknown Parameter Values](#KnownandUnknownParameterValues)
          - [Known and Unknwon Tokenizers](#KnownandUnknwonTokenizers)
          - [Loop Recursions and Static Recursions](#LoopRecursionsandStaticRecursions)
+     - [Intermediate Calculation Templates](#IntermediateCalculationTemplates)
  
 
 ## Abstract <a name="Abstract"></a>
