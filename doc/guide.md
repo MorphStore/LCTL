@@ -16,11 +16,12 @@
      - [The Calculation Templates](#TheCalculationTemplates)
      - [Algorithm Specification Static Bitpacking](#AlgorithmSpecificationStaticBitpacking)
  - [The Intermediate Layer](#TheIntermediateLayer)
-     - [Procedure Layer](#ProcedureLayer) 
+     - [Procedure Templates](#ProcedureTemplates) 
          - [Known and Unknown Parameter Values](#KnownandUnknownParameterValues)
          - [Known and Unknwon Tokenizers](#KnownandUnknwonTokenizers)
          - [Loop Recursions and Static Recursions](#LoopRecursionsandStaticRecursions)
      - [Intermediate Calculation Templates](#IntermediateCalculationTemplates)
+ - [The Generated Code Layer](#TheGeneratedCodeLayer) 
  
 
 ## Abstract <a name="Abstract"></a>
@@ -39,14 +40,13 @@ The data processing time can be reduced by around 20% by vectorization based on 
 
 Thus, it is neccessary to drastically reduce the implementation complexity for the programming with vector extensions as well as the implementation of tailor-made lightweigth compression algorithms. In our main-memory database system MorphStore we master this challenge of complexity reduction concerning the programming with vector extensions by the *TVL* as a hardware-oblivious concept. To reduce the complexity of the implementation of lightweight compression algorithms, we developed the metamodel *Collate (Compression...)* and its implementation *LCTL (Lightweight Compression Template Library)*. While Collate is a construction kit to define the compression format respectively the transformation rule from uncompressed to compressed data and back by the orchestration of different algorithmic parts, the LCTL implements the metamodel Collate with C++ Templates, such that the code for compression and decompression is generated at compile time.
 
-This guide will
+In this guide we will
 
- - explain some [basics](#Preliminaries) of lightweight data compression
- - the metamodel [Collate](#TheCollateMetamodel)
- - give a high level [Overview] of the implementation idea (#Overview) used to generate code to of a model
- - the implementation of the Collate [language](#TheLanguageImplementation)
- - the implementation of the [intermediate representation](#TheIntermediateRepresentation)
- - the implementation of the [code generation](#TheCodeGeneration)
+ - name some [basics](#Preliminaries) of lightweight data compression,
+ - give a high level [Overview](#Overview) of the metamodel Collate and the implementation idea used to generate code to of a model,
+ - introduce the three layers of the Collate [language](#TheLanguageImplementation), of the [intermediate representation](#TheIntermediateRepresentation), and the [code generation](#TheCodeGeneration),
+ - explain the (vertical) transformation from the model to the intermediate representation, as well as the transformation from the intermediate representation to the generated code,
+ - discuss cascades of format models and possible the (horizontal) transformations with its use cases and consequences, 
  - the integration of the [TVL](#TVLExtension)
  - ...
 
@@ -80,10 +80,8 @@ In this guide we will use the left depiction convention for our own figures. In 
 Implementations of lightweight compression functions without fancy (SIMD) processing mostly have three arguments: a pointer to the uncompressed input values, the number of logical values to compress, and a pointer to the compresssed output, that has to be written. Often the return value is used to express the physical size of the compressed values (in bytes, in blocks, etc.). Beside that, each function that compressed a variable number of input values has to have at least one loop (over blocks of values or single value). The same holds for decompression functions. Thus, functions written in C++ might have the followng structure.
 
 ```cpp
-size_t compress(uint32_t * in, size_t countIn, uint32_t * out)
+size_t compress(uint8_t * & in, size_t countIn, uint8_t * & out)
 {
- uint32_t * inCpy = in;
- uint32_t * outCpy = out;
  for (int i = 0; i < countIn, i += 32)
  {
   //compress
@@ -91,7 +89,7 @@ size_t compress(uint32_t * in, size_t countIn, uint32_t * out)
  return outCpy - out;
 }
 ```
-Here we use copies to increase the input and output pointers during the loop and return the compressed size 4-bytewise.
+In this special implementation the data is passed [by pointer reference instead of passing it by pointer](https://youtu.be/7HmCb343xR8). This means, that increasing the pointers inside the function increases the pointer outside the function. We use this in the LCTL implementation, too. 
 
 ###  Example Null Suppression and Bit Shifting <a name="NullSuppressionandBitShifting"></a>
 
@@ -108,9 +106,9 @@ This means, that an implementation of the compression algorithm applied to a run
  
 ```cpp
 size_t compress(
- uint32_t * in, /* uncompressed */ 
+ uint32_t * & in, /* uncompressed */ 
  size_t countIn, 
- uint32_t * out /* compressed */ ) 
+ uint32_t * & out /* compressed */ ) 
 {
  uint32_t * inCpy = in;
  uint32_t * outCpy = out;
@@ -148,9 +146,9 @@ size_t compress(
 
 ```cpp
 size_t decompress(
- uint32_t * in, /* compressed */ 
+ uint32_t * & in, /* compressed */ 
  size_t countIn, 
- uint32_t * out /* decompressed */ ) 
+ uint32_t * & out /* decompressed */ ) 
 {
  uint32_t * inCpy = in;
  uint32_t * outCpy = out;
@@ -407,7 +405,7 @@ As already mentioned, to compress and to decompress a variable number of values,
 
 In the current approach, most calculations have not to be somehow converted for the intermediate representation. In example, all arithmetic operations like adding and subtracting values are used like in the language layer. One decision is to enrich aggregations with a compiletime known tokensize, such that a loop unrolling can be done. The code can be found in ```LCTL/intermediate/calculation/aggregation.h```.
 
-## Generated Code Layer
+## The Generated Code Layer<a name="IntermediateCalculationTemplates"></a>
 
 The layer of generated code is not so heavily populated by different templated structs. What is done here inbetween the control flow and logical calculations is to read and to write data, whereas writing to the compressed output in the case of compression often has a connection with left shifts and reading from the compressed input in the case of decompression often has a connection with left shifts. Here, write and operations use shift templates. The template structs used here can be found in ```LCTL/codegeneration/``` in the files ```Write.h```, ```LeftShift.h```, and ```RightShift.h```. Besides, incrementations are done with template structs defined in file ```Increment.h```.
 
