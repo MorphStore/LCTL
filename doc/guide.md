@@ -80,13 +80,14 @@ In this guide we will use the left depiction convention for our own figures. In 
 Implementations of lightweight compression functions without fancy (SIMD) processing mostly have three arguments: a pointer to the uncompressed input values, the number of logical values to compress, and a pointer to the compresssed output, that has to be written. Often the return value is used to express the physical size of the compressed values (in bytes, in blocks, etc.). Beside that, each function that compressed a variable number of input values has to have at least one loop (over blocks of values or single value). The same holds for decompression functions. Thus, functions written in C++ might have the followng structure.
 
 ```cpp
-size_t compress(uint8_t * & in, size_t countIn, uint8_t * & out)
+size_t compress(uint32_t * & in, size_t countIn, uint32_t * & out)
 {
+ uint32_t outstart = out;
  for (int i = 0; i < countIn, i += 32)
  {
   //compress
  }
- return outCpy - out;
+ return out - outstart;
 }
 ```
 In this special implementation the data is passed [by pointer reference instead of passing it by pointer](https://youtu.be/7HmCb343xR8). This means, that increasing the pointers inside the function increases the pointer outside the function. We use this in the LCTL implementation, too. 
@@ -110,34 +111,33 @@ size_t compress(
  size_t countIn, 
  uint32_t * & out /* compressed */ ) 
 {
- uint32_t * inCpy = in;
- uint32_t * outCpy = out;
  for (int i = 0; i < countIn, i += 32)
- {
-  *outCpy = inCpy; /* value 1 */
-  inCpy++;
-  *outCpy |= inCpy << 12; /* value 2 */
-  inCpy++;
-  *outCpy |= inCpy << 24; /* value 3 */
-  outCpy++;
-  *outCpy = inCpy >> 8;
-  inCpy++;
-  *outCpy |= inCpy << 4; /* value 4 */
-  inCpy++;
-  *outCpy |= inCpy << 16; /* value 5 */
-  inCpy++;
-  *outCpy |= inCpy << 28; /* value 6 */
-  outCpy++;
-  *outCpy = inCpy >> 4;
-  inCpy++;
-  *outCpy |= inCpy << 8; /* value 7 */
-  inCpy++;
-  *outCpy |= inCpy << 20; /* value 8 */
-  inCpy; outCpy++;
+ {                          
+  uint32_t * outstart = out;                          
+  *out = in; /* value 1 */
+  in++;
+  *out |= in << 12; /* value 2 */
+  in++;
+  *out |= in << 24; /* value 3 */
+  out++;
+  *out = in >> 8;
+  in++;
+  *out |= in << 4; /* value 4 */
+  in++;
+  *out |= in << 16; /* value 5 */
+  in++;
+  *out |= in << 28; /* value 6 */
+  out++;
+  *out = in >> 4;
+  in++;
+  *out |= in << 8; /* value 7 */
+  in++;
+  *out |= in << 20; /* value 8 */
+  in; out++;
   // repeat 3 additional times 
   ...
  }
- return outCpy - out;
+ return out - outstart;
 }
 ```
                              
@@ -150,34 +150,33 @@ size_t decompress(
  size_t countIn, 
  uint32_t * & out /* decompressed */ ) 
 {
- uint32_t * inCpy = in;
- uint32_t * outCpy = out;
+ uint32_t * outstart = out;
  for (int i = 0; i < countIn, i += 32)
  {
-  *outCpy = inCpy & 0xFFF; /* value 1 */
-  outCpy++;
-  *outCpy = (inCpy >> 12) & 0xFFF; /* value 2 */
-  outCpy++;
-  *outCpy = inCpy >> 24; /* value 3 */
-  inCpy++;
-  *outCpy  |= (inCpy << 8) & 0xFFF;
-  outCpy++;
-  *outCpy = (inCpy >> 4) & 0xFFF; /* value 4 */
-  outCpy++;
-  *outCpy = (inCpy >> 16) & 0xFFF;; /* value 5 */
-  outCpy++;
-  *outCpy = inCpy >> 28; /* value 6 */
-  inCpy++;
-  *outCpy = (inCpy << 4) & 0xFFF;
-  outCpy++;
-  *outCpy = (inCpy >> 8) & 0xFFF; /* value 7 */
-  outCpy++;
-  *outCpy = inCpy >> 20; /* value 8 */
-  outCpy; inCpy++;
+  *out = in & 0xFFF; /* value 1 */
+  out++;
+  *out = (in >> 12) & 0xFFF; /* value 2 */
+  out++;
+  *out = in >> 24; /* value 3 */
+  in++;
+  *out  |= (in << 8) & 0xFFF;
+  out++;
+  *out = (in >> 4) & 0xFFF; /* value 4 */
+  out++;
+  *out = (in >> 16) & 0xFFF;; /* value 5 */
+  out++;
+  *out = in >> 28; /* value 6 */
+  in++;
+  *out = (in << 4) & 0xFFF;
+  out++;
+  *out = (in >> 8) & 0xFFF; /* value 7 */
+  out++;
+  *out = in >> 20; /* value 8 */
+  out; in++;
   // repeat 3 additionally times 
   ...
  }
- return outCpy - out;
+ return out - outstart;
 }
 ```
 
@@ -199,14 +198,14 @@ A slightly different implementation avoids the separation of the parts of the sp
  
 ```cpp
   /* value 2 */
-  *outCpy |= inCpy << 12; 
-  inCpy++;
+  *out |= in << 12; 
+  in++;
   /* value 3 */
-  *((uint64_t*) outCpy) |= inCpy << 24;
-  outCpy++;
-  inCpy++;
+  *((uint64_t*) out) |= in << 24;
+  out++;
+  in++;
   /* value 4 */
-  *outCpy |= inCpy << 4; 
+  *out |= in << 4; 
   ...
 ```
                              
@@ -215,14 +214,14 @@ A slightly different implementation avoids the separation of the parts of the sp
 
 ```cpp
   /* value 2 */
-  *outCpy = (inCpy >> 12) & 0xFFF; 
-  outCpy++;
+  *out = (in >> 12) & 0xFFF; 
+  out++;
   /* value 3 */
-  *outCpy = (*((uint64_t*) inCpy) >> 24) & 0xFFF; 
-  inCpy++;
-  outCpy++;
+  *out = (*((uint64_t*) in) >> 24) & 0xFFF; 
+  in++;
+  out++;
   /* value 4 */
-  *outCpy = (inCpy >> 4) & 0xFFF; 
+  *out = (in >> 4) & 0xFFF; 
   ...
 ```
  
