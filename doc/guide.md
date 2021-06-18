@@ -295,11 +295,11 @@ template<
 
 which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here. If possible, those templates are reused for the intermediate representation.
 
-Regarding to functionality, it looks a little different with the file ```LCTL/language/Format.h``` containing only a wrapper struct named ```Format```. It starts with the following lines:
+Regarding to functionality, it looks a little different with the file ```LCTL/language/COlumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
 
 ```cpp
 template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
-  struct Format {
+  struct ColumnFormat {
   ...
   }
 ```
