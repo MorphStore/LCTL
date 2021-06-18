@@ -62,8 +62,8 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    LoopRecursion_A<
-      KnownTokenizer_A<
+    LoopRecursionIR<
+      KnownTokenizerIR<
         tokensize_t, 
         next_t
       >,
@@ -129,8 +129,8 @@ namespace LCTL {
             std::cout << LCTL_WARNING << "Data tail (last "<< countInLog - i << " values) appended per memcpy, because blocksize of "<< tokensize_t << " values is not achieved.\n";
 #         endif    
           std::memcpy(outBase, inBase, sizeof(base_t)*(countInLog%tokensize_t) );
-          outBase += i % tokensize_t * sizeof(base_t)/sizeof(compressedbase_t);
-          inBase  += i % tokensize_t;
+          outBase += countInLog % tokensize_t * sizeof(base_t)/sizeof(compressedbase_t);
+          inBase  += countInLog % tokensize_t;
           return;
       };
         
@@ -216,8 +216,8 @@ namespace LCTL {
     typename... parametername_t>
   struct Generator<
     processingStyle_t, 
-    LoopRecursion_A<
-      UnknownTokenizer_A<logcalc_t>,
+    LoopRecursionIR<
+      UnknownTokenizerIR<logcalc_t>,
       combiner_t
     >,
     base_t,

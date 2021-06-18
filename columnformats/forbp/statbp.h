@@ -9,7 +9,7 @@
 #define LCTL_FORMATS_FORBP_STATBP_H
 
 
-#include "../../language/collate/Algorithm.h"
+#include "../../language/collate/ColumnFormat.h"
 #include "../../Definitions.h"
 #include "../../language/collate/Concepts.h"
 #include "../../language/calculation/arithmetics.h"
@@ -37,7 +37,7 @@ template <
   typename inputDatatype_t = NIL
 >
 using statbp = 
-Algorithm <
+ColumnFormat <
   processingStyle_t,
   Recursion<
     StaticTokenizer< sizeof(typename processingStyle_t::base_t) * 8>,

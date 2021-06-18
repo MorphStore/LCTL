@@ -4,6 +4,18 @@
 #include "../calculation/literals.h"
 
 namespace LCTL {
+  
+    /**
+   * @brief Static Tokenizer is a container for a constant number (tokensize)
+   * 
+   * @param <I> Tokensize
+   * 
+   * @date: 25.05.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <size_t S>
+  using StaticTokenizer = Size<S>;
+  
   /**
    * @brief Recursion concept in Collate
    * 
@@ -23,18 +35,21 @@ namespace LCTL {
     typename recursion_t, 
     typename combiner_t
   >
-  struct Recursion{};
+  struct Recursion{
+    static constexpr size_t staticTokensize = 0;
+  };
+  
+  template<
+    size_t S,
+    typename parameterCalculator_t, 
+    typename recursion_t, 
+    typename combiner_t
+  >
+  struct Recursion<StaticTokenizer<S>,parameterCalculator_t, recursion_t, combiner_t>{
+    static constexpr size_t staticTokensize = S;
+  };
+  
 
-  /**
-   * @brief Static Tokenizer is a container for a constant number (tokensize)
-   * 
-   * @param <I> Tokensize
-   * 
-   * @date: 25.05.2021 12:00
-   * @author: Juliana Hildebrandt
-   */
-  template <size_t I>
-  using StaticTokenizer = Size<I>;
 
   /**
    * @brief each parameter definition has a (variable) name, a logical calculation rule can have a bitwidth (physical calculation rule)

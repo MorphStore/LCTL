@@ -8,7 +8,7 @@
 #ifndef LCTL_FORMATS_FORBP_STATFORDYNBP_H
 #define LCTL_FORMATS_FORBP_STATFORDYNBP_H
 
-#include "../../language/collate/Algorithm.h"
+#include "../../language/collate/ColumnFormat.h"
 #include "../../Definitions.h"
 #include "../../language/collate/Concepts.h"
 #include "../../language/calculation/Concat.h"
@@ -31,11 +31,12 @@ using namespace LCTL;
  * we need a multiple of (sizeof(typename processingStyle_t::base_t) * 8) values. scale_t is necessary to set the number of values to a multiple
  */
 template <
-  typename processingStyle_t, 
+  typename processingStyle_t,
+  uint64_t ref,
   size_t scale_t = 1,
   typename inputDatatype_t = NIL
 >
-using statfordynbp = Algorithm <
+using statfordynbp = ColumnFormat <
   processingStyle_t,
   Recursion<
     StaticTokenizer<sizeof(typename processingStyle_t::base_t) * 8 * scale_t>,
@@ -53,7 +54,7 @@ using statfordynbp = Algorithm <
       Encoder<
         Minus<
           Token, 
-          Value<typename processingStyle_t::base_t,1>
+          Value<typename processingStyle_t::base_t,ref>
         >, String<decltype("bitwidth"_tstr)>>,
       Combiner<Token, LCTL_UNALIGNED>
     >,

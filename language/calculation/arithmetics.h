@@ -46,7 +46,7 @@ namespace LCTL {
         return ret1 - ret2;
       }
   };
-
+  
   template<typename T>
   struct Minus<Token, T> {
     using inverse = Plus<Token,T>;
@@ -160,6 +160,8 @@ namespace LCTL {
         const base_t * inBase)
       { return I / *inBase; }
   };
+
 }
+
 #endif /* LCTL_LANGUAGE_CALCULATION_ARITHMETICS_H */
 

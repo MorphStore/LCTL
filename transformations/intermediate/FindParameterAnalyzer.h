@@ -73,7 +73,7 @@ namespace LCTL {
         List<std::tuple<name, a, b, c>, std::tuple<parameter_t, a2, b2, Value<size_t, numberOfBits_t>>, valueList_t...>, 
         combinerList_t>{
     public:
-        using transform =NIL;/*KnownSizeCombinee_A<
+        using transform =NIL;/*KnownSizeCombineeIR<
                         parameter_t, 
                         Int<startBitPosition>, 
                         Int<numberOfBits_t>,  
@@ -98,9 +98,9 @@ namespace LCTL {
         parameter_t,
         startBitPosition,
         List<std::tuple<parameter_t, a, b, c>, valueList_t...>, 
-        Combiner_A<base_t, combiner_t...>>{
+        CombinerIR<base_t, combiner_t...>>{
     public:
-        using transform = UnknownSizeCombinee_A<
+        using transform = UnknownSizeCombineeIR<
                         parameter_t, 
                         startBitPosition, 
                         -1, 
@@ -133,9 +133,9 @@ namespace LCTL {
         List<
             std::tuple<parameter_t, a, b, numberOfBits_t>, 
             valueList_t...>, 
-        Combiner_A<base_t, combiner_t...>>{
+        CombinerIR<base_t, combiner_t...>>{
     public:
-        using transform = NIL;/*KnownSizeCombinee_A<
+        using transform = NIL;/*KnownSizeCombineeIR<
                         parameter_t, 
                         Int<startBitPosition>, 
                         Int<4>,//numberOfBits_t,  

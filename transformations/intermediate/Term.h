@@ -68,7 +68,7 @@ namespace LCTL {
     valueList_t, 
     base_t, 
     runtimeparameternames_t>{
-      using replace = Max_A<
+      using replace = MaxIR<
         typename Term<term, valueList_t, base_t, runtimeparameternames_t>::replace, 
         typename Term<
           String<decltype("tokensize"_tstr)>, 
@@ -91,7 +91,7 @@ namespace LCTL {
     valueList_t, 
     base_t, 
     runtimeparameternames_t>{
-      using replace = Min_A<
+      using replace = MinIR<
         typename Term<term, valueList_t, base_t, runtimeparameternames_t>::replace, 
         typename Term<
           String<decltype("tokensize"_tstr)>, 
@@ -162,7 +162,7 @@ namespace LCTL {
       base_t,
       List<runtimeparameternames_t...>
   >{
-    using replace = String_A<
+    using replace = StringIR<
         /* Name of the parameter */
         std::integer_sequence<char, term...>,
         /* position in runtime values. Does not make sense. In this step, the runtime parameters are added in front of all other values and a runtime tokensize is a runtime parameter*/

@@ -8,7 +8,7 @@
 #ifndef LCTL_FORMATS_FORBP_STATFORSTATBP_H
 #define LCTL_FORMATS_FORBP_STATFORSTATBP_H
 
-#include "../../language/collate/Algorithm.h"
+#include "../../language/collate/ColumnFormat.h"
 #include "../../Definitions.h"
 #include "../../language/collate/Concepts.h"
 #include "../../language/calculation/arithmetics.h"
@@ -23,7 +23,7 @@ template <
   typename inputDatatype_t = NIL
 >
 using statforstatbp = 
-Algorithm <
+  ColumnFormat <
     processingStyle_t,
     Recursion<
         StaticTokenizer<sizeof(typename processingStyle_t::base_t)*8>,
@@ -32,7 +32,7 @@ Algorithm <
             StaticTokenizer<1>,
             ParameterCalculator<>,
             Encoder<
-              Minus<
+            Minus<
                 Token, 
                 Value<
                   typename std::conditional<
@@ -42,7 +42,7 @@ Algorithm <
                   >::type,
                   ref
                 >
-              >, 
+              >,
               Size<bitwidth_t>
             >,
             Combiner<Token, LCTL_UNALIGNED>

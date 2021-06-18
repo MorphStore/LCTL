@@ -27,7 +27,7 @@ namespace LCTL {
     >
     struct findParameter {
         template <typename compressedbase_t, typename... parameters_t>
-        MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t decode (
+        MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint64_t decode (
             const compressedbase_t * & inBase,
             std::tuple<parameters_t... > parameters
         ){
@@ -63,7 +63,7 @@ namespace LCTL {
             parametername_t...
         >{
         template <typename compressedbase_t, typename... parameters_t>
-        MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t decode (
+        MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint64_t decode (
             const compressedbase_t * & inBase,
             std::tuple<parameters_t... > parameters
         ){
@@ -130,17 +130,20 @@ namespace LCTL {
                 parametername_t...
             >{
         template <typename compressedbase_t, typename... parameters_t>
-        MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t decode (
+        MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint64_t decode (
             const compressedbase_t * & inBase,
             std::tuple<parameters_t... > parameters
         ){
-            /* Incorrect iff parameter is a span value corresponding to uint64_t*/
-            //if (numberOfBits_t < sizeof(compressedbase_t)*8)
-            if  (numberOfBits_t < sizeof(compressedbase_t)*8)
-                return (((*((uint64_t*)(inBase + bitposition/(sizeof(compressedbase_t)*8))) >> (bitposition%(sizeof(compressedbase_t)*8))) - 1 ) % (1 << numberOfBits_t)) +1;
-            else 
-                //return *((uint64_t*)(inBase + bitposition/(sizeof(compressedbase_t)*8))) >> (bitposition%(sizeof(compressedbase_t)*8));
-                return (compressedbase_t) *((uint64_t*)(inBase + bitposition/(sizeof(compressedbase_t)*8))) >> (bitposition%(sizeof(compressedbase_t)*8));
+            size_t offsetToInBase = bitposition/(sizeof(compressedbase_t)*8);
+            uint64_t * valuePtr = (uint64_t *) (inBase + offsetToInBase);
+            size_t numberOfBitsToShiftRight = bitposition%(sizeof(compressedbase_t)*8);
+            uint64_t valueRightShifted = * valuePtr >> numberOfBitsToShiftRight;
+            uint64_t decodedValue = valueRightShifted;
+            if (numberOfBits_t < 64) {
+              uint64_t moduloForRelevantBits = 1 << numberOfBits_t;
+              decodedValue = decodedValue & ((1U << numberOfBits_t) - 1);
+            }
+            return decodedValue;
         }
     };
     
@@ -156,7 +159,7 @@ namespace LCTL {
         typename... parametername_t
     >
     struct findParameter<
-                SwitchValue_A<
+                SwitchValueIR<
                     name_t,
                     logicalValue_t, 
                     numberOfBits_t, 
@@ -168,7 +171,7 @@ namespace LCTL {
                 parametername_t...
             >{
         template <typename compressedbase_t, typename... parameters_t>
-        MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t decode (
+        MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint64_t decode (
             const compressedbase_t * & inBase,
             std::tuple<parameters_t... > parameters
         ){
@@ -196,7 +199,7 @@ namespace LCTL {
         typename... parametername_t
     >
     struct findParameter<
-        StaticRecursion_A<
+        StaticRecursionIR<
             inputsize_t,
             next_t, // Tokenizer
             combiner_t, 
@@ -208,7 +211,7 @@ namespace LCTL {
         parametername_t...
     >{
         template <typename compressedbase_t, typename... parameters_t>
-        MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t decode (
+        MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint64_t decode (
             const compressedbase_t * & inBase,
             std::tuple<parameters_t... > parameters
         ){ 
@@ -233,7 +236,7 @@ namespace LCTL {
         typename... parametername_t   
     >
     struct findParameter<
-        KnownValue_A<
+        KnownValueIR<
             base_t,
             name_t, 
             logicalValue_t, 
@@ -246,7 +249,7 @@ namespace LCTL {
         parametername_t...
     >{
         template <typename compressedbase_t, typename... parameters_t>
-        MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t decode (
+        MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint64_t decode (
             const compressedbase_t * & inBase,
             std::tuple<parameters_t... > parameters
         ){
@@ -264,14 +267,14 @@ namespace LCTL {
         typename... parametername_t
     >
     struct findParameter<
-            Encoder_A<log_t,phys_t, comb_t>, 
+            EncoderIR<log_t,phys_t, comb_t>, 
             namesearch_t, 
             bitposition, 
             base_t,
             parametername_t...
         >{
         template <typename compressedbase_t, typename... parameters_t>
-        MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t decode (
+        MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint64_t decode (
             const compressedbase_t * & inBase,
             std::tuple<parameters_t... > parameters
         ){

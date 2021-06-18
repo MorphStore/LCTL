@@ -50,8 +50,9 @@ namespace LCTL {
 #       endif
         *outBase = logicalencoding_t::apply(inBase, outBase, parameter) >> (bits);
 #       if LCTL_VERBOSECOMPRESSIONCODE
-          std::cout << " >> " << bits << ";\n";
+          std::cout << " *inBase >> " << bits << ";\n";
 #       endif
+        return;
     }
     
     template <typename... parameters_t>
@@ -67,8 +68,9 @@ namespace LCTL {
         //std::cout << "dec0\n";
         *outBase = *inBase >> (bits);
 #       if LCTL_VERBOSEDECOMPRESSIONCODE
-          std::cout << " >> " << bits << ";\n";
+          std::cout << " *inBase >> " << bits << ";\n";
 #       endif
+        return;
     }
   };
 
@@ -144,7 +146,7 @@ namespace LCTL {
 #endif
           *outBase = logicalencoding_t::apply(inBase, 1, parameter) >> (bits % (sizeof(compressedbase_t)*8));
 #if LCTL_VERBOSECOMPRESSIONCODE
-          std::cout << " >> " << bits << ";\n";
+          std::cout << (uint64_t) *inBase << " >> " << bits << ";\n";
 #endif
           return;
       };
@@ -171,7 +173,7 @@ namespace LCTL {
       typename logicalencoding_t, 
       /* mask needed for the case not the whole input word has to be encoded*/
       bool mask,
-      /* number of bits that belong to the inoputvalue -> bit mask if needed */
+      /* number of bits that belong to the inputvalue -> bit mask if needed */
       size_t bitsize_t>
   struct RightShift<processingStyle_t, base_t, bits, true, logicalencoding_t, mask, bitsize_t>{
     using compressedbase_t = typename processingStyle_t::base_t;
@@ -187,9 +189,11 @@ namespace LCTL {
 #endif
           *outBase = logicalencoding_t::apply(inBase, tokensize, parameter)  >> (bits);
 #if LCTL_VERBOSECOMPRESSIONCODE
-          std::cout << " >> " << bits << ";\n";
+          std::cout << "  *inBase >> " << bits << ";\n";
 #endif
+          return;
       };
+      
       template <typename... parameters_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
           const compressedbase_t * & inBase, 
@@ -202,9 +206,10 @@ namespace LCTL {
 #endif
           //std::cout << "dec3\n";
           *outBase = *inBase >> (bits);
-#if LCTL_VERBOSECOMPRESSIONCODE
-          std::cout << " >> " << bits << ";\n";
+#if LCTL_VERBOSEDECOMPRESSIONCODE
+          std::cout <<  " *inBase >> " << bits << ";\n";
 #endif
+          return;
       };
   };
   /**
@@ -244,7 +249,7 @@ namespace LCTL {
 #endif
           *outBase |= (logicalencoding_t::apply(inBase, tokensize, parameter)  >> bits) % (1 << bitsize_t);
 #if LCTL_VERBOSECOMPRESSIONCODE
-          std::cout << " >> " << bits << ") & ((1U << "
+          std::cout << (uint64_t) *inBase << " >> " << bits << ") & ((1U << "
                   << bitsize_t << ")-1); // (Bitsize "<< bitsize_t<<")\n";
 #endif
       };
@@ -262,7 +267,7 @@ namespace LCTL {
           *outBase = (*inBase >> bits) % ( (compressedbase_t) 1 << (((bitsize_t-1) % (sizeof(base_t)*8))+1));
 
 #if LCTL_VERBOSEDECOMPRESSIONCODE
-          std::cout << " >> " << bits << ") & ((1U << "
+          std::cout << " *inBase >> " << bits << ") & ((1U << "
                   << bitsize_t << ")-1); // (Bitsize "<< bitsize_t<<")\n";
 #endif
       };
@@ -321,7 +326,7 @@ namespace LCTL {
           *outBase = (*inBase % ( (compressedbase_t) 1 << (bitsize_t % (sizeof(compressedbase_t)*8))));
 
 #if LCTL_VERBOSEDECOMPRESSIONCODE
-          std::cout << " & ((1U << "
+          std::cout << " *inBase & ((1U << "
                   << bitsize_t << ")-1); // (Bitsize "<< bitsize_t<<")\n";
 #endif
       };

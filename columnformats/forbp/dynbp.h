@@ -9,7 +9,7 @@
 #define LCTL_FORMATS_FORBP_DYNBP_H
 
 #include "../../language/collate/Concepts.h"
-#include "../../language/collate/Algorithm.h"
+#include "../../language/collate/ColumnFormat.h"
 #include "../../language/calculation/aggregation.h"
 #include "../../language/calculation/literals.h"
 #include "../../Definitions.h"
@@ -39,7 +39,7 @@ template <
   size_t scale_t = 1, 
   typename inputDatatype_t = NIL
 >
-using dynbp = Algorithm <
+using dynbp = ColumnFormat <
   processingStyle_t,
   Recursion<
     StaticTokenizer<sizeof(typename processingStyle_t::base_t) * 8 * scale_t>,

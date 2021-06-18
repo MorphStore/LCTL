@@ -8,14 +8,16 @@
 #ifndef LCTL_FORMATS_FORBP_DYNFORBP_H
 #define LCTL_FORMATS_FORBP_DYNFORBP_H
 
-#include "../../language/collate/Algorithm.h"
+#include "../../language/collate/ColumnFormat.h"
 #include "../../Definitions.h"
 #include "../../language/collate/Concepts.h"
 #include "../../language/calculation/Concat.h"
 #include "../../language/calculation/aggregation.h"
 #include "../../language/calculation/literals.h"
+#include <type_traits>
 
 using namespace LCTL;
+
 
 template <
   typename processingStyle_t, 
@@ -23,15 +25,18 @@ template <
   typename inputDatatype_t = NIL
 >
 using dynforbp =
-  Algorithm <
+  ColumnFormat <
     processingStyle_t,
     Recursion<
-      StaticTokenizer<sizeof(processingStyle_t::base_t)*8*scale_t>,
+      StaticTokenizer<sizeof(typename processingStyle_t::base_t) * 8 * scale_t>,
       ParameterCalculator<
         ParameterDefinition<
           String<decltype("min"_tstr)>,
           Min<Token>, 
-          Value<size_t,sizeof(processingStyle_t::base_t)*8>
+          Value<
+            size_t,
+            16
+          >
         >,
         ParameterDefinition<
           String<decltype("bitwidth"_tstr)>,
@@ -41,7 +46,7 @@ using dynforbp =
               String<decltype("min"_tstr)>
             >
           >, 
-          Value<size_t,sizeof(processingStyle_t::base_t)*8>
+          Value<size_t,sizeof(typename processingStyle_t::base_t) * 8>
         >
       >,
       Recursion<

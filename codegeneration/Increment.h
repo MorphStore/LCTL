@@ -45,7 +45,7 @@ namespace LCTL {
         std::cout << "  += "<< tokensize<<";\n";
 #     endif
       src+= tokensize;
-      };
+    };
 
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static void apply(base_t * & src, size_t tokensize){
 #     if LCTL_VERBOSECODE

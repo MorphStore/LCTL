@@ -102,13 +102,13 @@ namespace LCTL {
     
   /* Forward Declaration */
   template<typename base_t, class recursion_t, typename compressedbase_t>
-  struct Algorithm;
+  struct ColumnFormat;
     
   /**
    * @brief Analyzer, this is only used in the case that no other specialization mets the condition
    * ("throw an error" if the syntax of the compression format is wrong) 
    * 
-   * @param <collate_t> something, but not an Algortihm
+   * @param <collate_t> something, but not a Format
    */
   template <class collate_t>
   struct Analyzer{
@@ -117,7 +117,7 @@ namespace LCTL {
   };
     
   /*
-   * @brief The node is a root node (Algortihm). The first thing we do is to initialize all adaptive parameters.
+   * @brief The node is a root node (Format). The first thing we do is to initialize all adaptive parameters.
    * Because they shall not be deleted in each loop pass.
    * 
    * @param <base_t>      input data type
@@ -139,7 +139,7 @@ namespace LCTL {
     typename baseout_t
   >
   struct Analyzer<
-    Algorithm<
+    ColumnFormat<
       base_t, 
       Recursion<
         tokenizer_t, 
@@ -150,7 +150,7 @@ namespace LCTL {
       baseout_t
     >
   >{
-      using transform = Algorithm_A<
+      using transform = FormatIR<
         typename InitializeAdaptiveParameters<
           ParameterCalculator<pads...>,
           /* input datatype */

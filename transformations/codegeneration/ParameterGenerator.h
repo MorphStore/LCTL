@@ -50,7 +50,7 @@ namespace LCTL {
     struct Generator<
         /* base for uncompressed values */
         processingStyle_t, 
-        SwitchValue_A<
+        SwitchValueIR<
             name, 
             logicalValue_t, 
             /* value is encoded with a fix length . TODO: SwitchValue is not en/decoded, but calculated dependent from other values */
@@ -226,8 +226,8 @@ namespace LCTL {
     >
     struct Generator<
         processingStyle_t, 
-        AdaptiveValue_A<
-            UnknownValue_A<
+        AdaptiveValueIR<
+            UnknownValueIR<
                 name_t, 
                 logicalValue_t, 
                 Value<size_t, numberOfBits_t>, 
@@ -338,7 +338,7 @@ namespace LCTL {
     >
     struct Generator<
         processingStyle_t, 
-        UnknownValue_A<
+        UnknownValueIR<
             name, // String
             logicalValue_t, 
             Value<size_t, numberOfBits_t>, 
@@ -406,11 +406,11 @@ namespace LCTL {
             // TODO is not necessarrily base_t, might be size_t for tokensize
             // If physical value has a bitwidth > 0, try to find it,
             // if physical value has a bitwidth == 0, only calculate the inverse of the logical operation 
-            base_t parameter = (numberOfBits_t > 0)
+            base_t parameter = (base_t)((numberOfBits_t > 0)
                 ? findParameter<next_t, name, bitposition, base_t, parametername_t...>::decode(inBase,parameters)
-                : logicalValue_t::inverse::apply(inBase, tokensize, parameters);
+                : logicalValue_t::inverse::apply(inBase, tokensize, parameters));
 #if LCTL_VERBOSEDECOMPRESSIONCODE
-            std::cout << "; // UnknownValue\n";
+            std::cout << (uint64_t) parameter << "; // UnknownValue\n";
             std::cout << "  // Tuplesize " << sizeof...(parameter_t)+ 1 << "\n";
 #endif
             Generator<

@@ -244,12 +244,12 @@ namespace LCTL {
   template <typename T, T... chars>
   constexpr tstring<chars...> operator""_tstr() { return { }; }
   /**
-   * @brief String_A is used in the intermediate representation. 
+   * @brief StringIR is used in the intermediate representation. 
    * It contains the string and -because the value is not known at compile time - 
    * the position in the runtime parameter pack.
    */
   template <typename, size_t S>
-  struct String_A;
+  struct StringIR;
   /**
    * @brief String is used in the collate language. 
    * In contains the string resp. the name of the parameter
@@ -293,7 +293,7 @@ namespace LCTL {
   };
 
   /**
-   * @brief String_A is used in the intermediate representation. 
+   * @brief StringIR is used in the intermediate representation. 
    * It contains the string and -because the value is not known at compile time - 
    * the position in the runtime parameter pack.
    * 
@@ -301,19 +301,19 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template <typename name_t, size_t S>
-  struct String_A{
+  struct StringIR{
     /**
      * @brief For decompression, all parameters and encodings that have to be calculated with the inverse mathematical function.
      * (Exceptions are aggregations, which are mostly somehow encoded  in the compressed data.) 
      * Inverse is a recursive invertation of the mathematical function. In the
-     * case of "String_A", nothing has to be inversed.
+     * case of "StringIR", nothing has to be inversed.
      * 
      * @date: 31.05.2021 12:00
      * @author: Juliana Hildebrandt
      */
-    using inverse = String_A<name_t, S>;
+    using inverse = StringIR<name_t, S>;
     /**
-     * @brief String_A is a runtime parameter with a name and a position in the runtime parameter pack. 
+     * @brief StringIR is a runtime parameter with a name and a position in the runtime parameter pack. 
      * apply function returns the parameters be recursive search in the runtime parameter pack.
      * 
      * @param inBase      pointer compressed or uncompressed data memory region (not needed here)

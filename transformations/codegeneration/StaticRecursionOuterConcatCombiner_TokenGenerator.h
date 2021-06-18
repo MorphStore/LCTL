@@ -42,12 +42,12 @@ namespace LCTL {
     struct Generator<
         /* input granularity */
         processingStyle_t, 
-        StaticRecursion_A<
+        StaticRecursionIR<
             /*number of input values is known, inner recursion with  a static tokenizer in outer recursion has i.e. 32 input values */
             inputs_t, 
-            KnownTokenizer_A<
+            KnownTokenizerIR<
                 1,
-                Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+                EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
             >, 
             Combiner<Token, LCTL_UNALIGNED>,
             Combiner<Concat<std::tuple<Token, Token, NIL>, tail_t...>, LCTL_ALIGNED>
@@ -77,11 +77,11 @@ namespace LCTL {
             Incr<true, base_t, 1>::apply(inBase); 
             Generator<
                 processingStyle_t, 
-                StaticRecursion_A<
+                StaticRecursionIR<
                     inputs_t,
-                    KnownTokenizer_A<
+                    KnownTokenizerIR<
                         1,
-                        Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
+                        EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
                     >, 
                     Combiner<Token,  LCTL_UNALIGNED>,
                     Combiner<Concat<std::tuple<Token, Token, NIL>, tail_t...>, LCTL_ALIGNED>
@@ -124,11 +124,11 @@ namespace LCTL {
             >::apply(outBase);
             Generator<
                 processingStyle_t, 
-                StaticRecursion_A<
+                StaticRecursionIR<
                     inputs_t,
-                    KnownTokenizer_A<
+                    KnownTokenizerIR<
                         1,
-                        Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
+                        EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
                     >, 
                     Combiner<Token,  LCTL_UNALIGNED>,
                     Combiner<Concat<std::tuple<Token, Token, NIL>, tail_t...>, LCTL_ALIGNED>
@@ -155,12 +155,12 @@ namespace LCTL {
     struct Generator<
         /* input granularity */
         processingStyle_t, 
-        StaticRecursion_A<
+        StaticRecursionIR<
             /*number of input values is known, inner recursion with  a static tokenizer in outer recursion has i.e. 32 input values */
             inputs_t, 
-            KnownTokenizer_A<
+            KnownTokenizerIR<
                 1,
-                Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
+                EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
             >, 
             Combiner<Token,  LCTL_UNALIGNED>,
             Combiner<Concat<std::tuple<Token, Token, NIL>, tail_t...>, LCTL_ALIGNED>
@@ -181,11 +181,11 @@ namespace LCTL {
         ) { 
             Generator<
                 processingStyle_t, 
-                StaticRecursion_A<
+                StaticRecursionIR<
                     inputs_t,
-                    KnownTokenizer_A<
+                    KnownTokenizerIR<
                         1,
-                        Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
+                        EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
                     >, 
                     Combiner<Token,  LCTL_UNALIGNED>,
                     Combiner<Concat<tail_t...>, LCTL_ALIGNED>
@@ -208,11 +208,11 @@ namespace LCTL {
             //std::cout << "// Static Recursion 6\n";
             /*Generator<
                 processingStyle_t, 
-                StaticRecursion_A<
+                StaticRecursionIR<
                     inputs_t,
-                    KnownTokenizer_A<
+                    KnownTokenizerIR<
                         1,
-                        Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
+                        EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token,  LCTL_UNALIGNED> >
                     >, 
                     Combiner<Token,  LCTL_UNALIGNED>,
                     Combiner<Concat<std::tuple<Token, Token, NIL>, tail_t...>, LCTL_ALIGNED>

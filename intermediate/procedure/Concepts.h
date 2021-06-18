@@ -19,7 +19,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template <size_t logval_t, typename next_t>
-  struct KnownTokenizer_A{};
+  struct KnownTokenizerIR{};
 
   /**
    * @brief other tokenizer than StaticTokenizer in the collate model
@@ -31,7 +31,24 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template <typename logcalc_t>
-  struct UnknownTokenizer_A{};
+  struct UnknownTokenizerIR{};
+  
+  /**
+   * @brief  A SwitchTikenizer_IR is used in the cases, where the value is not known at compiletime,
+   * but there is a small set of possible tokensizes, such that for a non-template implementation a switch case would be used. 
+   * Examples are 
+   * - selectors for Simple algorithms (not implemented at th moment), 
+   * - cases for Varint (not implemented at the moment and to see with reservation,  beacause there are betterimplementations without case distincations)
+   * 
+   * @date: 02.06.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
+  template <
+    typename name, 
+    typename logicalValue_t, 
+    typename numberOfBits_t, 
+    typename ...cases_t>
+  struct SwitchTokenizerIR{};
 
   /**
    * @brief Encoder in the inner recursion
@@ -47,7 +64,7 @@ namespace LCTL {
     typename log_t, 
     typename phys_t, 
     typename combiner_t>
-  struct Encoder_A{};
+  struct EncoderIR{};
 
   /** 
    * @brief This recursion can not be unrolled. 
@@ -61,7 +78,7 @@ namespace LCTL {
   template <
     typename tokenizer_t, 
     typename combiner_t>
-  struct LoopRecursion_A {};
+  struct LoopRecursionIR {};
 
   /**
    * @brief This recursion an be unrolled, because input size is known at compile time and we have a static tokenizer
@@ -81,7 +98,7 @@ namespace LCTL {
     typename tokenizer_t,
     typename combiner_t,
     typename outerCombiner_t>
-  struct StaticRecursion_A {};
+  struct StaticRecursionIR {};
 
   /**
    * @brief Easy case. Specialization of unrollabe recursion. Here, additionally to compiletime-known number of input values (static outer tokenizer),
@@ -102,22 +119,23 @@ namespace LCTL {
     typename next_t,
     typename combiner_t,
     typename outerCombiner_t>
-  struct StaticRecursion_A<
+  struct StaticRecursionIR<
     inputsize_t, 
-    KnownTokenizer_A<logval_t, next_t>, 
+    KnownTokenizerIR<logval_t, next_t>, 
     combiner_t, 
     outerCombiner_t> {};
 
   /**
-   * @brief root node of intermediate representation of an algorithm
+   * @brief root node of intermediate representation of a format
    * 
+   * @param <processingStyle>   datatype to handle the memory region of compressed and decompressed values
    * @param<node_t> child node: a recursion (or FAILURE_ID<...>)
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
    */
   template<typename node_t>  
-  struct Algorithm_A{};
+  struct FormatIR{};
 
   /* In the following: New Node Types for the Analyze layer*/
   
@@ -139,7 +157,7 @@ namespace LCTL {
     base_t logicalValue_t, 
     typename numberOfBits_t, 
     typename next_t>
-  struct KnownValue_A{
+  struct KnownValueIR{
       static const base_t value = logicalValue_t;
       using next = next_t;
   };
@@ -160,14 +178,14 @@ namespace LCTL {
     typename logicalValue_t, 
     typename numberOfBits_t, 
     typename next_t>
-  struct UnknownValue_A{};
+  struct UnknownValueIR{};
 
   template <
     typename parameter_t>
-  struct AdaptiveValue_A{};
+  struct AdaptiveValueIR{};
 
   /**
-   * @brief  A SwitchValue_A is used in the cases, where the value is not known at compiletime,
+   * @brief  A SwitchValue_IRis used in the cases, where the value is not known at compiletime,
    * but there is a small set of possible values, such that for a non-template implementation a switch case would be used. 
    * Examples are 
    * - bit widths, 
@@ -182,7 +200,7 @@ namespace LCTL {
     typename logicalValue_t, 
     typename numberOfBits_t, 
     typename ...cases_t>
-  struct SwitchValue_A{};
+  struct SwitchValueIR{};
 }
 #endif /* LCTL_INTERMEDIATE_PROCEDURE_CONCEPTS_H */
 

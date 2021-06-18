@@ -97,7 +97,7 @@ namespace LCTL {
     outertokenizer_t,
     List<runtimeparameternames_t...>
   >{
-      using transform = UnknownValue_A<
+      using transform = UnknownValueIR<
         name_t,
         startvalue_t,
         numberOfBits_t,
@@ -215,8 +215,8 @@ namespace LCTL {
     runtimeparameternames_t
   >{
       // TODO
-    using transform = LoopRecursion_A<
-        UnknownTokenizer_A<tokenizer_t>, 
+    using transform = LoopRecursionIR<
+        UnknownTokenizerIR<tokenizer_t>, 
         combiner_t
       >;
   };
@@ -257,11 +257,11 @@ namespace LCTL {
       /* Static Recursion means, 
        * that the overall input is known at compile time and thus, 
        * it can be unrolled*/
-      using transform = StaticRecursion_A<
+      using transform = StaticRecursionIR<
               /* overal input size */
               n,
               /* tokensize has to be calculated */
-              UnknownTokenizer_A<tokenizer_t>, 
+              UnknownTokenizerIR<tokenizer_t>, 
               /* combiner in this recursion */
               combiner_t, 
               /* combiner in the outer recursion */
@@ -303,9 +303,9 @@ namespace LCTL {
       outertokenizer_t,
       runtimeparameternames_t
   >{
-    using transform = LoopRecursion_A<
+    using transform = LoopRecursionIR<
               /* tokensize in the LoopRecursion is fix/known at compile-time*/
-              KnownTokenizer_A<
+              KnownTokenizerIR<
                   n,
                   /* next parameter/recursion/encoder is transformed */
                   typename ParameterAnalyzer<
@@ -376,9 +376,9 @@ namespace LCTL {
       outertokenizer_t,
       runtimeparameternames_t
   >{
-      using transform = LoopRecursion_A<
+      using transform = LoopRecursionIR<
               /* tokensize in the LoopRecursion is fix/known at compile-time*/
-              KnownTokenizer_A<
+              KnownTokenizerIR<
                   n,
                   /* next parameter/recursion/encoder is transformed */
                   typename ParameterAnalyzer<
@@ -486,9 +486,9 @@ namespace LCTL {
       Value<size_t,inputsize_t>,
       runtimeparameternames_t
   >{
-      using transform = StaticRecursion_A<
+      using transform = StaticRecursionIR<
               inputsize_t,
-              KnownTokenizer_A<
+              KnownTokenizerIR<
                   n,
                   typename ParameterAnalyzer<
                       base_t, 

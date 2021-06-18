@@ -9,7 +9,7 @@
 #define LCTL_FORMATS_DELTA_DELTA_H
 
 #include "../../language/collate/Concepts.h"
-#include "../../language/collate/Algorithm.h"
+#include "../../language/collate/ColumnFormat.h"
 #include "../../language/calculation/arithmetics.h"
 #include "../../Definitions.h"
 
@@ -20,7 +20,7 @@ template <
   typename inputDatatype_t = NIL
 >
 using delta = 
-Algorithm <
+ColumnFormat <
   processingStyle_t,
   Recursion<
     StaticTokenizer<1>,

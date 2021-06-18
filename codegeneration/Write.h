@@ -13,7 +13,7 @@
 
 #ifndef LCTL_CODEGENERATION_WRITE_H
 #define LCTL_CODEGENERATION_WRITE_H
-
+size_t itemswritten = 0;
 namespace LCTL {
   /**
    * @brief used to write all span value overheads to the next output word
@@ -67,13 +67,12 @@ namespace LCTL {
           /* do or don't*/
           ((bitposition_t + bitwidth_t) > (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8),
           /* logical encoding */
-          Token,
+          logicalencoding_t,
           /* mask? */
           false,
           /* number of bits that belong to the inputvalue -> bit mask if needed */
           bitwidth_t
         >::compress(inBase, outBase, tokensize, parameter);
-
         IncrAndWriteSpan<
           /* input data type */
           processingStyle_t, 
@@ -100,10 +99,10 @@ namespace LCTL {
       const std::tuple<parameters_t...> parameter)
     {
 #       if LCTL_VERBOSEDECOMPRESSIONCODE
-          if ((bitposition_t + bitwidth_t) >= sizeof(base_t)*8) std::cout << "  inBase";
+          if (bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ) std::cout << "  inBase";
 #       endif
         /* Increment inBase if needed */
-        Incr<(bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ), compressedbase_t, 1>::apply(inBase);           
+        Incr<(bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ), compressedbase_t, 1>::apply(inBase);  
         LeftShift<
           processingStyle_t,
           base_t,
@@ -137,6 +136,9 @@ namespace LCTL {
         return;
     }
   };
+  /**
+   * @brief recursion break
+   */
   template <
     /* input data type */
     class processingStyle_t, 
@@ -258,23 +260,14 @@ namespace LCTL {
           std::cout << "  // bitposition " << bitposition_t << " bitwidth_t " << bitwidth_t << " sizeof(compressedbase_t)*8 " << sizeof(compressedbase_t)*8 << "\n";
           if ((bitposition_t + bitwidth_t) >= sizeof(compressedbase_t)*8) std::cout << "  outBase";
 #       endif
-        /* if not all neccessary bits fit into the output, the output has to be increased. */
-        Incr<
-          (bitposition_t + bitwidth_t) >= sizeof(compressedbase_t)*8, 
-          compressedbase_t, 
-          1
-        >::apply(outBase);             
-        /* Write the rest of a span value (higher bits) in the next output word, if there is a rest*/
-        RightShift<
+        IncrAndWriteSpan<
           processingStyle_t, 
           base_t, 
-          bitwidth_t-((bitposition_t + bitwidth_t)%(sizeof(compressedbase_t)*8)),
-          /* do or don't */ 
-          ((bitposition_t + bitwidth_t) > sizeof(compressedbase_t)*8),
-          logicalencoding_t,
-          /* no bitmask */
-          false,
-          0
+          bitposition_t, 
+          bitwidth_t, 
+          logicalencoding_t, 
+          tokensize_t,
+          sizeof(base_t)/sizeof(compressedbase_t) + 1
         >::compress(inBase, outBase, tokensize, parameter);
         return;
 
@@ -287,6 +280,7 @@ namespace LCTL {
       base_t * & outBase,
       const std::tuple<parameters_t...> parameter)
     {
+//        std::cout << "address compressed and decompressed " << (uint64_t* ) inBase << " " << (uint64_t* ) outBase << "\n";
         /* Write Bitstring to the output, rightshifted */
         RightShift<
           processingStyle_t, 
@@ -308,98 +302,9 @@ namespace LCTL {
           bitwidth_t, 
           Token, 
           tokensize_t,
-          sizeof(base_t)/sizeof(compressedbase_t)
+          sizeof(base_t)/sizeof(compressedbase_t) + 1
         >::decompress(inBase, outBase, tokensize, parameter);
-        std::cout << (uint64_t*) inBase << " " << (uint64_t*) inBase << " " << *inBase << " " << *outBase << "\n";
         *outBase = logicalencoding_t::inverse::apply(outBase, tokensize, parameter);
-        std::cout << (uint64_t*) inBase << " " << (uint64_t*) inBase << " " << *inBase << " " << *outBase << "\n";
-      
-#if false
-      /* inverse logical preprocessing*/
-      if (bitwidth_t < sizeof(base_t)*8){
-          if (bitposition_t + bitwidth_t <= sizeof(compressedbase_t)*8) {
-              //std::cout << "  //" << bitposition_t << " + " << bitwidth_t << " <= " << sizeof(compressedbase_t)*8 << "\n";
-              const base_t tmp = ( *inBase >> bitposition_t) % ((base_t) 1 << bitwidth_t);
-              const base_t* tmpptr = &tmp;
-              /* Write Bitstring to the output*/ 
-              LeftShift<
-                  processingStyle_t, 
-                  base_t, 
-                  0, 
-                  true, 
-                  typename logicalencoding_t::inverse,
-                  false,
-                  bitwidth_t
-              >::decompress(tmpptr, outBase, tokensize, parameter);
-          } else {
-              //std::cout << "  //" << bitposition_t << " + " << bitwidth_t << " > " << sizeof(compressedbase_t)*8 << "\n";
-              const base_t tmp = ((*inBase >> bitposition_t)  % ((base_t) 1 << bitwidth_t)) |  
-              ((
-              /* second part is right endian in *(inBase+1)*/
-                  *(inBase+1) 
-                & (
-                    (
-                      (base_t) 1 << (bitposition_t + bitwidth_t- sizeof(compressedbase_t)*8)
-                    ) - 1
-                  )
-              ) << (sizeof(compressedbase_t)*8 - bitposition_t));
-              const base_t* tmpptr = &tmp;      
-          /* Write Bitstring to the output*/   
-              LeftShift<
-                  processingStyle_t, 
-                  base_t, 
-                  0, 
-                  true, 
-                  typename logicalencoding_t::inverse,
-                  false,
-                  bitwidth_t
-              >::decompress(tmpptr, outBase, tokensize, parameter);
-          } 
-      } else {
-          if (bitposition_t + bitwidth_t <= sizeof(compressedbase_t)*8) {
-              //std::cout << "  //" << bitposition_t << " + " << bitwidth_t << " <= " << sizeof(compressedbase_t)*8 << "\n";
-              const base_t tmp = ( *inBase >> bitposition_t);
-              const base_t* tmpptr = &tmp;
-              /* Write Bitstring to the output*/  
-              LeftShift<
-                  processingStyle_t, 
-                  base_t, 
-                  0, 
-                  true, 
-                  typename logicalencoding_t::inverse,
-                  false,
-                  bitwidth_t
-              >::decompress(tmpptr, outBase, tokensize, parameter);
-          } else {
-            //std::cout << "  //" << bitposition_t << " + " << bitwidth_t << " > " << sizeof(compressedbase_t)*8 << "\n";
-            const base_t tmp = (*inBase >> bitposition_t) |  
-            ((
-            /* second part is right endian in *(inBase+1)*/
-                *(inBase+1) 
-              & (
-                  (
-                    (base_t) 1 << (bitposition_t + bitwidth_t- sizeof(compressedbase_t)*8)
-                  ) - 1
-                )
-            ) << (sizeof(compressedbase_t)*8 - bitposition_t));
-            const base_t* tmpptr = &tmp;      
-        /* Write Bitstring to the output*/ 
-            LeftShift<
-                processingStyle_t, 
-                base_t, 
-                0, 
-                true, 
-                typename logicalencoding_t::inverse,
-                false,
-                bitwidth_t
-            >::decompress(tmpptr, outBase, tokensize, parameter);
-          } 
-        }
-#if LCTL_VERBOSEDECOMPRESSIONCODE
-        if (bitposition_t + bitwidth_t >= sizeof(compressedbase_t)*8) std::cout << "  inBase";
-#endif 
-        Incr<(bitposition_t + bitwidth_t >= sizeof(compressedbase_t)*8), base_t, 1>::apply(inBase);
-#endif
         return;
     }
   };

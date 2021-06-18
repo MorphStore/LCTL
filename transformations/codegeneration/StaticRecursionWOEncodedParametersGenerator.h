@@ -64,16 +64,16 @@ namespace LCTL {
     typename... parametername_t>
   struct Generator<
     processingStyle_t, 
-    StaticRecursion_A<
+    StaticRecursionIR<
       numberOfValuesPerBlock_t, 
-      KnownTokenizer_A<
+      KnownTokenizerIR<
         1,
-        Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+        EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
       >, 
       Combiner<Token, LCTL_UNALIGNED>,
       Combiner<Token, LCTL_ALIGNED>
     >,
-    /* data type of compressed values */
+    /* data type of uncompressed values */
     base_t,
     remainingValuesToWrite_t,
     bitposition_t,
@@ -117,11 +117,11 @@ namespace LCTL {
           Incr<true, base_t, 1>::apply(inBase);
           Generator<
             processingStyle_t, 
-            StaticRecursion_A<
+            StaticRecursionIR<
               numberOfValuesPerBlock_t,
-              KnownTokenizer_A<
+              KnownTokenizerIR<
                 1,
-                Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+                EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
               >, 
               Combiner<Token, LCTL_UNALIGNED>,
               Combiner<Token, LCTL_ALIGNED>
@@ -167,11 +167,11 @@ namespace LCTL {
         Incr<true, base_t, 1>::apply(outBase);  
         Generator<
           processingStyle_t, 
-          StaticRecursion_A<
+          StaticRecursionIR<
             numberOfValuesPerBlock_t,
-            KnownTokenizer_A<
+            KnownTokenizerIR<
               1,
-              Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+              EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
             >, 
             Combiner<Token, LCTL_UNALIGNED>,
             Combiner<Token, LCTL_ALIGNED>
@@ -214,11 +214,11 @@ namespace LCTL {
     typename... parametername_t>
   struct Generator<
     processingStyle_t, 
-    StaticRecursion_A<
+    StaticRecursionIR<
       numberOfValuesPerBlock_t, 
-      KnownTokenizer_A<
+      KnownTokenizerIR<
         1,
-        Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+        EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
       >, 
       Combiner<Token, LCTL_UNALIGNED>,
       Combiner<Token, LCTL_ALIGNED>
@@ -276,7 +276,7 @@ namespace LCTL {
     ) {
 #       if LCTL_VERBOSEDECOMPRESSIONCODE
           std::cout << "// Decompress StaticRecursion 2\n";
-          if (bitposition != 0) std::cout << "  inBase ";
+          if (bitposition_t != 0) std::cout << "  inBase ";
 #       endif
         Incr<bitposition_t != 0, base_t, 1>::apply(inBase);       
         return 0;

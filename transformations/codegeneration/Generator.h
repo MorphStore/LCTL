@@ -18,6 +18,7 @@
 #include "./LoopRecursionGenerator.h"
 #include "./EncoderGenerator.h"
 #include "./StaticRecursionOuterConcatCombiner_TokenGenerator.h"
+#include <header/preprocessor.h>
 
 #ifndef LCTL_TRANSFORMATIONS_CODEGNERATION_GENERATOR_H
 #define LCTL_TRANSFORMATIONS_CODEGNERATION_GENERATOR_H
@@ -48,7 +49,7 @@ namespace LCTL {
   struct Generator;
 
   /**
-   * @brief Common Code for all Algorithms (not perfect). Starting point for code generation out of the intermediate tree.
+   * @brief Common Code for all Formats (not perfect). Starting point for code generation out of the intermediate tree.
    * 
    * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @param <base_t>              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
@@ -70,7 +71,7 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    Algorithm_A<recursion_t>, 
+    FormatIR<recursion_t>, 
     base_t, 
     tokensize_t,
     /* bitposition at the beginning of en- and decoding */
@@ -101,8 +102,8 @@ namespace LCTL {
          * 
          * @todo Why no reinteprret_cast for in8?
          */
-        const base_t * inBase = (const base_t *)(in8);
-        compressedbase_t * outBase = reinterpret_cast<compressedbase_t *>(out8);
+        const base_t * & inBase = reinterpret_cast<const base_t * & >(in8);
+        compressedbase_t * & outBase = reinterpret_cast<compressedbase_t * & >(out8);
 
         #if VERBOSECOMPRESSIONCODE
           std::cout << "  "<< typeString.at(*typeid(base_t).name()) << " * inBase = reinterpret_cast<"<< typeString.at(*typeid(base_t).name()) << " *>(in8);\n";
@@ -146,9 +147,9 @@ namespace LCTL {
         uint8_t * out8)
       {
         /* compressed data */
-        const compressedbase_t * inBase = (const compressedbase_t *)(in8);
+        const compressedbase_t * & inBase = reinterpret_cast<const compressedbase_t * & >(in8);
         /* decompressed data */
-        base_t * outBase = reinterpret_cast<base_t *>(out8);        
+        base_t * & outBase = reinterpret_cast<base_t * & >(out8);        
   #     if LCTL_VERBOSEDECOMPRESSIONCODE
           std::cout << "  const "<< typeString.at(*typeid(compressedbase_t).name()) << " * outBase = reinterpret_cast<"<< typeString.at(*typeid(compressedbase_t).name()) << " *>(in8);\n";
           std::cout << "  "<< typeString.at(*typeid(base_t).name()) << " * outBase = reinterpret_cast<"<< typeString.at(*typeid(base_t).name()) << " *>(out8);\n\n";
@@ -176,14 +177,14 @@ namespace LCTL {
   
   /*
    * The following specialisations are a group, that handles the sequential and correct Writes to the output: Tokens and parameters.
-   * Maybe I do not cover all cases, expecially, if new algorithms with diferent properties are included
+   * Maybe I do not cover all cases, expecially, if new formats with diferent properties are included
    */
 
   /**
    * @brief Code generation for Static Recursions (unrollable inner loops). No action, because of break condition.
    * 
    * Now, we have a StaticRecursion (as the inner of two recursions). 
-   * At the moment we only handle algorithms, where the inner combiner writes only tokens.
+   * At the moment we only handle formats, where the inner combiner writes only tokens.
    * The outer combiner might be a concat combiner.
    * We process the Combiners recursively. 
    * This specialization is a break condition, because of Concat<>. Nothing to do here.
@@ -213,11 +214,11 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    StaticRecursion_A<
+    StaticRecursionIR<
       tokensizeOuterRecursion_t, 
-      KnownTokenizer_A<
+      KnownTokenizerIR<
         1,
-        Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+        EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
       >, 
       Combiner<Token, LCTL_UNALIGNED>,
       Combiner<Concat<>, LCTL_ALIGNED>
@@ -274,7 +275,7 @@ namespace LCTL {
    * The next parameter with a compiletime known value of the outer combiner is encoded/decoded.
    * 
    * Now, we have a StaticRecursion (as the inner of two recursions). 
-   * At the moment we only handle algorithms, where the inner combiner writes only tokens.
+   * At the moment we only handle formats, where the inner combiner writes only tokens.
    * The outer combiner might be a concat combiner.
    * We process the Combiners recursively. 
    * This specialization handles the case, that the next thing to encode/decode is a parameter (tuple of name, logical value and bitwidth) of the outer combiner
@@ -325,11 +326,11 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    StaticRecursion_A<
+    StaticRecursionIR<
       tokensizeOuterRecursion_t, 
-      KnownTokenizer_A<
+      KnownTokenizerIR<
         1,
-        Encoder_A<  
+        EncoderIR<  
           logicalencoding_t, 
           Value<bitwidthtype_t, bitwidth_t>, 
           Combiner<Token, LCTL_UNALIGNED> >
@@ -389,11 +390,11 @@ namespace LCTL {
       >::compress(outBase);
       Generator<
         processingStyle_t, 
-        StaticRecursion_A<
+        StaticRecursionIR<
           tokensizeOuterRecursion_t,
-          KnownTokenizer_A<
+          KnownTokenizerIR<
             1,
-            Encoder_A<  
+            EncoderIR<  
               logicalencoding_t, 
               Value<size_t,bitwidth_t>, 
               Combiner<Token, LCTL_UNALIGNED> 
@@ -451,11 +452,11 @@ namespace LCTL {
       
       Generator<
         processingStyle_t, 
-        StaticRecursion_A<
+        StaticRecursionIR<
           tokensizeOuterRecursion_t,
-          KnownTokenizer_A<
+          KnownTokenizerIR<
             1,
-            Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+            EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
           >, 
           Combiner<Token, LCTL_UNALIGNED>,
           Combiner<Concat<tail_t...>, LCTL_ALIGNED>
@@ -474,7 +475,7 @@ namespace LCTL {
    * The next parameter might not be a compile known value. The combiner itself only knows its name.
    * 
    * Now, we have a StaticRecursion (as the inner of two recursions). 
-   * At the moment we only handle algorithms, where the inner combiner writes only tokens.
+   * At the moment we only handle formats, where the inner combiner writes only tokens.
    * The outer combiner might be a concat combiner.
    * We process the Combiners recursively. 
    * This specialization handles the case, that the next thing to encode/decode is a parameter 
@@ -524,11 +525,11 @@ namespace LCTL {
   struct Generator<
   /* input granularity */
   processingStyle_t, 
-  StaticRecursion_A<
+  StaticRecursionIR<
     tokensizeOuterRecursion_t, 
-    KnownTokenizer_A<
+    KnownTokenizerIR<
       1,
-      Encoder_A<  
+      EncoderIR<  
         logicalencoding_t, 
         Value<size_t,bitwidth_t>, 
         Combiner<Token, LCTL_UNALIGNED> 
@@ -539,8 +540,8 @@ namespace LCTL {
       Concat<
         std::tuple<
           name_t, 
-          /* not Value<int, n>. but a String_A<name, position in parameter tuple> */
-          String_A<std::integer_sequence<char, namestring_t...>, positionInParameterTuple_t>, 
+          /* not Value<int, n>. but a StringIR<name, position in parameter tuple> */
+          StringIR<std::integer_sequence<char, namestring_t...>, positionInParameterTuple_t>, 
           /* bit width */
           Value<size_t, bitwidthparameter_t>
         >, 
@@ -593,11 +594,11 @@ namespace LCTL {
         );
         Generator<
           processingStyle_t, 
-          StaticRecursion_A<
+          StaticRecursionIR<
             tokensizeOuterRecursion_t,
-            KnownTokenizer_A<
+            KnownTokenizerIR<
               1,
-              Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+              EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
             >, 
             Combiner<Token, LCTL_UNALIGNED>,
             Combiner<Concat<tail_t...>, LCTL_ALIGNED>
@@ -634,7 +635,7 @@ namespace LCTL {
           const std::tuple<parameters_t...> parameters)
       {       
   #       if LCTL_VERBOSEDECOMPRESSIONCODE
-          if ((bitwidthparameter_t + bitposition) >= sizeof(compressedbase_t)*8) std::cout << "  inBase";
+          if ((bitwidthparameter_t + bitposition_t) >= sizeof(compressedbase_t)*8) std::cout << "  inBase";
   #       endif
         Incr<
           ((bitwidthparameter_t + bitposition_t) >= sizeof(compressedbase_t)*8), 
@@ -643,11 +644,11 @@ namespace LCTL {
         >::apply(inBase);             
         Generator<
           processingStyle_t, 
-          StaticRecursion_A<
+          StaticRecursionIR<
             tokensizeOuterRecursion_t,
-            KnownTokenizer_A<
+            KnownTokenizerIR<
               1,
-              Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+              EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
             >, 
             Combiner<Token, LCTL_UNALIGNED>,
             Combiner<Concat<tail_t...>, LCTL_ALIGNED>
@@ -666,7 +667,7 @@ namespace LCTL {
    * @brief Code generation for Static Recursions (unrollable inner loops). 
    * This specialization handles the case, that the outer combiner concatenates
    * first data blocks and afterwards parameters. 
-   * The order is difficulft to implement. And the only algortihm I have in mind is VarintPU.
+   * The order is difficulft to implement. And the only formats I have in mind is VarintPU.
    * 
    * @todo At the moment this implementation does not handle the case correctly.
    * It does nothing except the incrementation of outBase 
@@ -706,11 +707,11 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    StaticRecursion_A<
+    StaticRecursionIR<
       tokensizeOuterRecursion_t, 
-      KnownTokenizer_A<
+      KnownTokenizerIR<
         1,
-        Encoder_A<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+        EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
       >,
       Combiner<Token, LCTL_UNALIGNED>,
       Combiner<Concat<std::tuple<Token,Token,NIL,Value<basev_t,0>>, tail_t...>, LCTL_ALIGNED>

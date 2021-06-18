@@ -85,7 +85,7 @@ namespace LCTL {
     List<runtimeparameternames_t...>>{
 
     using logicalValueReplace = typename Term<logicalValue_t, List<valueList_t...>, base_t, List<runtimeparameternames_t...>>::replace;
-    using transform = UnknownValue_A<
+    using transform = UnknownValueIR<
         name,
         logicalValueReplace, 
         numberOfBits_t, 
@@ -149,8 +149,8 @@ namespace LCTL {
       List<runtimeparameternames_t...>>{
 
       using logicalValueReplace = typename Term<logicalValue_t, List<valueList_t...>, base_t, List<runtimeparameternames_t...>>::replace;
-      using transform = AdaptiveValue_A<
-          UnknownValue_A<
+      using transform = AdaptiveValueIR<
+          UnknownValueIR<
               name,
               logicalValueReplace, 
               numberOfBits_t, 
@@ -211,7 +211,7 @@ namespace LCTL {
       List<runtimeparameternames_t...>
   >{
 
-      using transform = KnownValue_A<
+      using transform = KnownValueIR<
               base_t,
               name,
               logicalValue_t, 
@@ -273,7 +273,7 @@ namespace LCTL {
       List<runtimeparameternames_t...>
   >{
       using seq = std::make_integer_sequence<base_t, 8*sizeof(base_t) +  1>;
-      using transform = SwitchValue_A<
+      using transform = SwitchValueIR<
               name,
               typename Term<Bitwidth<logicalValue_t>, List<valueList_t...>, base_t, List<runtimeparameternames_t...>>::replace, 
               numberOfBits_t, 
@@ -394,7 +394,7 @@ namespace LCTL {
 
   /**
    *  Parametercalculator is empty and we have an encoder
-   *  Transformation Encoder -> Encoder_A with
+   *  Transformation Encoder -> EncoderIR with
    *  * logicalValue_t: calculation term for logical value
    *  * term for calculation of used bitwidth, here we try to replace known parameters by the corresponding values
    *  * list of bitstrings with value und size to write in the output one after the other 
@@ -423,7 +423,7 @@ namespace LCTL {
 
       using logicalvalue = typename Term<logicalValue_t, List<value_t...>, base_t,runtimeparameternames_t>::replace;
       using physicalsize = typename Term<numberOfBits_t, List<value_t...>, base_t,runtimeparameternames_t>::replace;
-      using transform = Encoder_A<
+      using transform = EncoderIR<
               /* logical preprocessing*/
               logicalvalue,
               /* bitwith or calculation rule for bit width */

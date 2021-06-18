@@ -63,7 +63,7 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    Encoder_A<
+    EncoderIR<
       logicalencoding_t,
       Value<long unsigned int, bitwidth_t>,
       Combiner<Token, true>
@@ -139,6 +139,7 @@ namespace LCTL {
 #       if LCTL_VERBOSEDECOMPRESSIONCODE
           std::cout << "// Write next token " << (uint64_t) *inBase << " at bitposition 0\n";
 #       endif
+          std::cout << "EncoderGenerator.h: decompress address " << (uint64_t *) outBase << "\n";
         Write<
           processingStyle_t, 
           base_t, 

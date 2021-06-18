@@ -107,7 +107,7 @@ namespace LCTL {
       typename parameternamesmax_t,
       typename parameternames_t
   >
-  struct Bitwidth<Max_A<
+  struct Bitwidth<MaxIR<
     Token, 
     Value<size_t, tokensize_t>, 
     base_t, 
@@ -124,7 +124,7 @@ namespace LCTL {
           for (size_t i = 0; i < tokensize_t; i++)
               orLoop |= *(inBase + i);
 #         if LCTL_VERBOSECODE
-            std::cout << "32 - __builtin_clz( " << (uint64_t) or_loop;
+            std::cout << "32 - __builtin_clz( " << (uint64_t) orLoop;
 #         endif
           const base_t ret = 32 - __builtin_clz(orLoop);
 #         if LCTL_VERBOSECODE
@@ -140,7 +140,7 @@ namespace LCTL {
       typename parameternames_t
   >
   struct Bitwidth<
-    Max_A<
+    MaxIR<
       Token, 
       Value<size_t, tokensize_t>, 
       uint64_t, 
