@@ -338,7 +338,7 @@ In the following you see the implementation of an example algorithm for Static B
 !   typename inputDatatype_t = NIL
   >
   using statbp = 
-- Format <
+- ColumnFormat <
 !   processingStyle_t,
 -   Recursion <
 -     StaticTokenizer< 
