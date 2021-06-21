@@ -111,9 +111,9 @@ size_t compress(
  size_t countIn, 
  uint32_t * & out /* compressed */ ) 
 {
+ uint32_t * outstart = out;  
  for (int i = 0; i < countIn, i += 32)
- {                          
-  uint32_t * outstart = out;                          
+ {                                                  
   *out = in; /* value 1 */
   in++;
   *out |= in << 12; /* value 2 */
