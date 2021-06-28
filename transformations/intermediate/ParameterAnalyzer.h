@@ -13,14 +13,14 @@ namespace LCTL {
   /* Forward Declaration */
   template <
     typename base_t, 
-    int recursionLevel, 
-    typename recursion_t, 
+    int level, 
+    typename loop_t, 
     typename combinerList_t, 
     typename valueList_t,
     typename tokenizer_t,
     typename runtimeparameternames_t
       >
-  struct RecursionAnalyzer;
+  struct LoopAnalyzer;
 
   /**
    * PARAMETERCALCULATOR
@@ -28,9 +28,9 @@ namespace LCTL {
 
   template <
     typename base_t, 
-    int recursionLevel, 
+    int level, 
     typename parameterCalculator_t, 
-    typename recursion_t, 
+    typename loop_t, 
     typename combinerList_t, 
     typename valueList_t,
     typename tokenizer_t,
@@ -40,10 +40,10 @@ namespace LCTL {
 
   template <
     typename base_t, 
-    int recursionLevel, 
+    int level, 
     typename parameterCalculator_t, 
     typename seq, 
-    typename recursion_t,
+    typename loop_t,
     typename combinerlist_t,
     typename valuelist_t,
     typename tokenizer_t,
@@ -60,15 +60,15 @@ namespace LCTL {
     typename logicalValue_t, 
     typename numberOfBits_t, 
     typename... pads, 
-    typename recursion_t, 
+    typename loop_t, 
     typename ... combinerList_t, 
     typename ... valueList_t, 
-    int recursionLevel, 
+    int level, 
     typename inputsize_t,
     typename... runtimeparameternames_t>
   struct ParameterAnalyzer<
     base_t, 
-    recursionLevel, 
+    level, 
     ParameterCalculator<
       ParameterDefinition<
         name, 
@@ -78,7 +78,7 @@ namespace LCTL {
       >, 
       pads...
     >, 
-    recursion_t, 
+    loop_t, 
     List<combinerList_t...>, 
     List<valueList_t...>, 
     inputsize_t,
@@ -91,14 +91,14 @@ namespace LCTL {
         numberOfBits_t, 
         typename ParameterAnalyzer<
           base_t, 
-          recursionLevel, 
+          level, 
           ParameterCalculator<pads...>, 
-          recursion_t,  
+          loop_t,  
           List<combinerList_t...>, 
           List<
             std::tuple<
               name, 
-              Value<size_t, recursionLevel>, 
+              Value<size_t, level>, 
               logicalValueReplace, 
               numberOfBits_t
             >,
@@ -119,17 +119,17 @@ namespace LCTL {
     typename logicalValue_t, 
     typename numberOfBits_t, 
     typename startvalue_t,
-    int recursionLevel_t,
+    int level_t,
     typename... pads, 
-    typename recursion_t, 
+    typename loop_t, 
     typename ... combinerList_t, 
     typename ... valueList_t, 
-    int recursionLevel, 
+    int level, 
     typename inputsize_t,
     typename... runtimeparameternames_t>
   struct ParameterAnalyzer<
       base_t, 
-      recursionLevel, 
+      level, 
       ParameterCalculator<
           AdaptiveParameterDefinition<
               ParameterDefinition<
@@ -138,11 +138,11 @@ namespace LCTL {
                   numberOfBits_t
               >,
           startvalue_t,
-          recursionLevel_t
+          level_t
           >, 
           pads...
       >, 
-      recursion_t, 
+      loop_t, 
       List<combinerList_t...>, 
       List<valueList_t...>, 
       inputsize_t,
@@ -156,14 +156,14 @@ namespace LCTL {
               numberOfBits_t, 
               typename ParameterAnalyzer<
                   base_t, 
-                  recursionLevel_t, 
+                  level_t, 
                   ParameterCalculator<pads...>, 
-                  recursion_t,  
+                  loop_t,  
                   List<combinerList_t...>, 
                   List<
                       std::tuple<
                           name, 
-                          Value<size_t, recursionLevel>, 
+                          Value<size_t, level>, 
                           logicalValueReplace, 
                           numberOfBits_t
                       >,
@@ -186,16 +186,16 @@ namespace LCTL {
       base_t logicalValue_t, 
       typename numberOfBits_t, 
       typename... pads, 
-      typename recursion_t, 
+      typename loop_t, 
       typename ...combinerList_t, 
       typename ...valueList_t, 
-      int recursionLevel,
+      int level,
       typename inputsize_t,
       typename... runtimeparameternames_t
   >
   struct ParameterAnalyzer<
       base_t, 
-      recursionLevel, 
+      level, 
       ParameterCalculator<
           ParameterDefinition<
               name, 
@@ -204,7 +204,7 @@ namespace LCTL {
           >, 
           pads...
       >, 
-      recursion_t, 
+      loop_t, 
       List<combinerList_t...>, 
       List<valueList_t...>,
       inputsize_t,
@@ -218,14 +218,14 @@ namespace LCTL {
               numberOfBits_t, 
               typename ParameterAnalyzer<
                   base_t, 
-                  recursionLevel, 
+                  level, 
                   ParameterCalculator<pads...>, 
-                  recursion_t, 
+                  loop_t, 
                   List<combinerList_t...>, 
                   List<
                       std::tuple<
                           name, 
-                          Size<recursionLevel>, 
+                          Size<level>, 
                           Value<base_t,logicalValue_t>, 
                           numberOfBits_t
                       >,
@@ -248,16 +248,16 @@ namespace LCTL {
       typename logicalValue_t, 
       typename numberOfBits_t, 
       typename... pads, 
-      typename recursion_t, 
+      typename loop_t, 
       typename... combinerList_t, 
       typename... valueList_t, 
-      int recursionLevel,
+      int level,
       typename inputsize_t,
       typename... runtimeparameternames_t
   >
   struct ParameterAnalyzer<
       base_t, 
-      recursionLevel, 
+      level, 
       ParameterCalculator<
           ParameterDefinition<
               name, 
@@ -266,7 +266,7 @@ namespace LCTL {
           >, 
           pads...
       >, 
-      recursion_t,  
+      loop_t,  
       List<combinerList_t...>, 
       List<valueList_t...>,
       inputsize_t,
@@ -279,7 +279,7 @@ namespace LCTL {
               numberOfBits_t, 
               typename SwitchParameterAnalyzer<
                   base_t, 
-                  recursionLevel, 
+                  level, 
                   ParameterCalculator<
                       ParameterDefinition<
                           name, 
@@ -294,7 +294,7 @@ namespace LCTL {
                       pads...
                   >, 
                   seq, 
-                  recursion_t, 
+                  loop_t, 
                   List<combinerList_t...>, 
                   List<valueList_t...>,
                   inputsize_t,
@@ -313,15 +313,15 @@ namespace LCTL {
       typename numberOfBits_t, 
       base_t ...seq, 
       typename ...pads, 
-      typename recursion_t, 
+      typename loop_t, 
       typename ...combinerList_t, 
       typename ...valueList_t, 
-      int recursionLevel,
+      int level,
       typename inputsize_t,
       typename runtimeparameternames_t>
   struct SwitchParameterAnalyzer<
       base_t, 
-      recursionLevel, 
+      level, 
       ParameterCalculator<
           ParameterDefinition<
               name, 
@@ -331,7 +331,7 @@ namespace LCTL {
           pads...
       >, 
       std::integer_sequence<base_t, seq...>, 
-      recursion_t, 
+      loop_t, 
       List<combinerList_t...>, 
       List<valueList_t...>,
       inputsize_t,
@@ -341,7 +341,7 @@ namespace LCTL {
       using transform = List<
               typename ParameterAnalyzer<
                   base_t, 
-                  recursionLevel, 
+                  level, 
                   ParameterCalculator<
                       ParameterDefinition<
                           name, 
@@ -350,7 +350,7 @@ namespace LCTL {
                       >, 
                       pads...
                   >, 
-                  recursion_t, 
+                  loop_t, 
                   List<combinerList_t...>, 
                   List<valueList_t...>,
                   inputsize_t,
@@ -360,31 +360,31 @@ namespace LCTL {
   };
 
   /**
-   * ParameterCalculator is empty and we have a recursion
+   * ParameterCalculator is empty and we have a further loop
    */
   template <
       typename base_t, 
-      int recursionLevel, 
-      typename recursion_t, 
+      int level, 
+      typename loop_t, 
       typename ...combinerList_t, 
       typename ...valueList_t,
       typename inputsize_t,
       typename runtimeparameternames_t>
   struct ParameterAnalyzer<
       base_t, 
-      recursionLevel, 
+      level, 
       ParameterCalculator<>, 
-      recursion_t, 
+      loop_t, 
       List<combinerList_t...>, 
       List<valueList_t...>,
       inputsize_t,
       runtimeparameternames_t
   >{
 
-      using transform = typename RecursionAnalyzer<
+      using transform = typename LoopAnalyzer<
               base_t, 
-              recursionLevel+1, 
-              recursion_t, 
+              level+1, 
+              loop_t, 
               List<combinerList_t...>, 
               List<valueList_t...>,
               inputsize_t,
@@ -406,13 +406,13 @@ namespace LCTL {
       typename combinerfirst_t,
       typename ...combiner_t,
       typename ... value_t, 
-      int recursionLevel,
+      int level,
       typename inputsize_t,
       typename runtimeparameternames_t
   >
   struct ParameterAnalyzer<
       base_t, 
-      recursionLevel, 
+      level, 
       ParameterCalculator<>, 
       Encoder<logicalValue_t, numberOfBits_t>, 
       List<combinerfirst_t, combiner_t...>, 

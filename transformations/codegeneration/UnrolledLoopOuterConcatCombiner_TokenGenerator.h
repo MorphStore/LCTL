@@ -42,8 +42,8 @@ namespace LCTL {
     struct Generator<
         /* input granularity */
         processingStyle_t, 
-        StaticRecursionIR<
-            /*number of input values is known, inner recursion with  a static tokenizer in outer recursion has i.e. 32 input values */
+        UnrolledLoopIR<
+            /*number of input values is known, inner loop with  a static tokenizer in outer loop has i.e. 32 input values */
             inputs_t, 
             KnownTokenizerIR<
                 1,
@@ -77,7 +77,7 @@ namespace LCTL {
             Incr<true, base_t, 1>::apply(inBase); 
             Generator<
                 processingStyle_t, 
-                StaticRecursionIR<
+                UnrolledLoopIR<
                     inputs_t,
                     KnownTokenizerIR<
                         1,
@@ -124,7 +124,7 @@ namespace LCTL {
             >::apply(outBase);
             Generator<
                 processingStyle_t, 
-                StaticRecursionIR<
+                UnrolledLoopIR<
                     inputs_t,
                     KnownTokenizerIR<
                         1,
@@ -155,8 +155,8 @@ namespace LCTL {
     struct Generator<
         /* input granularity */
         processingStyle_t, 
-        StaticRecursionIR<
-            /*number of input values is known, inner recursion with  a static tokenizer in outer recursion has i.e. 32 input values */
+        UnrolledLoopIR<
+            /*number of input values is known, inner loop with  a static tokenizer in outer loop has i.e. 32 input values */
             inputs_t, 
             KnownTokenizerIR<
                 1,
@@ -181,7 +181,7 @@ namespace LCTL {
         ) { 
             Generator<
                 processingStyle_t, 
-                StaticRecursionIR<
+                UnrolledLoopIR<
                     inputs_t,
                     KnownTokenizerIR<
                         1,
@@ -208,7 +208,7 @@ namespace LCTL {
             //std::cout << "// Static Recursion 6\n";
             /*Generator<
                 processingStyle_t, 
-                StaticRecursionIR<
+                UnrolledLoopIR<
                     inputs_t,
                     KnownTokenizerIR<
                         1,

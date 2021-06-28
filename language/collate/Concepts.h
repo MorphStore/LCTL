@@ -35,7 +35,7 @@ namespace LCTL {
     typename recursion_t, 
     typename combiner_t
   >
-  struct Recursion{
+  struct Loop{
     static constexpr size_t staticTokensize = 0;
   };
   
@@ -45,7 +45,7 @@ namespace LCTL {
     typename recursion_t, 
     typename combiner_t
   >
-  struct Recursion<StaticTokenizer<S>,parameterCalculator_t, recursion_t, combiner_t>{
+  struct Loop<StaticTokenizer<S>,parameterCalculator_t, recursion_t, combiner_t>{
     static constexpr size_t staticTokensize = S;
   };
   

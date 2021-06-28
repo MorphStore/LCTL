@@ -20,11 +20,11 @@ using namespace LCTL;
  * 
  * Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
-#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <=8 && BITWIDTH >= 1 && BITWIDTH <= 8)
+#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 8 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <=16 && BITWIDTH >= 1 && BITWIDTH <= 16)
 /* 
  * Dynamic Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and maximal bitwidth for datagenerator BITWIDTH
  */
-#define CRITERION_DYNBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE == 8 && BITWIDTH >= 64 && BITWIDTH <= 64)
+#define CRITERION_DYNBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE == 8 && BITWIDTH >= 1 && BITWIDTH <= 1)
 /* 
  * Static FOR with Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
@@ -36,7 +36,7 @@ using namespace LCTL;
  */
 #define REF_STATFORDYNBP 1
 #define SCALE_STATFORDYNBP 1
-#define CRITERION_STATFORDYNBP(COMPRESSEDBASE, BASE, UPPER) (BASE == 8 && COMPRESSEDBASE == 8  && UPPER - REF_STATFORDYNBP >= 0 && UPPER == 0X3)
+#define CRITERION_STATFORDYNBP(COMPRESSEDBASE, BASE, UPPER) (BASE == 0 && COMPRESSEDBASE == 8  && UPPER - REF_STATFORDYNBP >= 0 && UPPER == 0X3)
 /* 
  * Dynamic FOR with Dynamic Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH for the upper value for the data generator
  * This does not work at the moment
@@ -134,17 +134,19 @@ struct testcaseCorrectness {
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &beginCompression);
     /* data compression, size of compressed data is stored in bytes */
     size_t sizeCompressedInBytes = Compress<format_t>::apply(
-      reinterpret_cast < const uint8_t * > (inCurrent),
+      (const uint8_t * &) (inCurrent),
       countInLog_t,
-      reinterpret_cast < uint8_t * & > (compressedMemoryRegionCurrent)
+      (uint8_t * &) (compressedMemoryRegionCurrent)
     );
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endCompression);
     
     compressedMemoryRegionCurrent = compressedMemoryRegion;
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &beginDecompression);    
     /* data decompression, size of decompressed data is stored in bytes */
-    size_t sizeDecompressedInBytes = Decompress<format_t>::apply(reinterpret_cast <
-      const uint8_t * > (compressedMemoryRegionCurrent), countInLog_t, reinterpret_cast < uint8_t * & > (decompressedMemoryRegionCurrent));
+    size_t sizeDecompressedInBytes = Decompress<format_t>::apply(
+            ( const uint8_t *& ) (compressedMemoryRegionCurrent), 
+            countInLog_t, 
+            ( uint8_t * & ) (decompressedMemoryRegionCurrent));
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endDecompression);
     
     /* print data sizes */

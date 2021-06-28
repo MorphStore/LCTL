@@ -41,15 +41,14 @@ namespace LCTL {
      * @author: Juliana Hildebrandt
      */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t apply(
-      const uint8_t * uncompressedMemoryRegion8,
+      const uint8_t * & uncompressedMemoryRegion8,
         size_t countInLog,
         uint8_t * & compressedMemoryRegion8) 
     {
-      //std::cout << "size bitwdith " << format_t::s << "\n";
       /* The intermediate representation can be printed to the terminal */
 #     if LCTL_VERBOSETREE
         int status_a;
-        static std::string a = typeid(transform).name();
+        static std::string a = typeid(typename format_t::transform).name();
         char * demangled_name_a = abi::__cxa_demangle(a.c_str(), NULL, NULL, & status_a);
         if (status_a == 0) {
           a = demangled_name_a;

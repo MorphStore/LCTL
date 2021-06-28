@@ -27,7 +27,7 @@ template <
 using dynforbp =
   ColumnFormat <
     processingStyle_t,
-    Recursion<
+    Loop<
       StaticTokenizer<sizeof(typename processingStyle_t::base_t) * 8 * scale_t>,
       ParameterCalculator<
         ParameterDefinition<
@@ -49,7 +49,7 @@ using dynforbp =
           Value<size_t,sizeof(typename processingStyle_t::base_t) * 8>
         >
       >,
-      Recursion<
+      Loop<
         StaticTokenizer<1>,
         ParameterCalculator<>,
         Encoder<Minus<Token, String<decltype("min"_tstr)>>, String<decltype("bitwidth"_tstr)>>,

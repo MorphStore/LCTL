@@ -57,7 +57,7 @@ namespace LCTL {
       >::type;
     using compressedbase_t = typename processingStyle::base_t;
     using processingStyle_t = processingStyle;
-    static constexpr size_t staticTokensize = recursion_t::tokensize;
+    static constexpr size_t staticTokensize = recursion_t::staticTokensize;
     /**
      * @brief The specified format is a tree of the structure of the data format, 
      * transform is an intermediate tree between format description and code generation.

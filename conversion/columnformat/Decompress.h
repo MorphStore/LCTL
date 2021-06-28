@@ -38,7 +38,7 @@ namespace LCTL {
      * @author: Juliana Hildebrandt
      */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t apply(
-      const uint8_t * compressedMemoryRegion8,
+      const uint8_t * & compressedMemoryRegion8,
       const size_t countInLog,
       uint8_t * & decompressedMemoryRegion8) 
     {

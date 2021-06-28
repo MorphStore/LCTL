@@ -107,7 +107,7 @@ namespace LCTL {
    * We replace the string by the found value */
   template<
     char ...term, 
-    typename recursionLevel, 
+    typename level, 
     typename numberOfBits_t, 
     typename... valuelisttuple_t, 
     typename base_t, 
@@ -124,7 +124,7 @@ namespace LCTL {
           String<
             std::integer_sequence<char, term...>
           >, 
-          recursionLevel, 
+          level, 
           Value<parametertype_t, value_t>, 
           numberOfBits_t
         >,
@@ -138,7 +138,7 @@ namespace LCTL {
 
   template<
     char ...term, 
-    typename recursionLevel, 
+    typename level, 
     typename numberOfBits_t, 
     typename... valuelisttuple_t, 
     typename base_t, 
@@ -153,7 +153,7 @@ namespace LCTL {
           String<
             std::integer_sequence<char, term...>
           >, 
-          recursionLevel, 
+          level, 
           logicalValue_t, 
           numberOfBits_t
         >,
@@ -182,7 +182,7 @@ namespace LCTL {
     char... term, 
     typename... valueList_t, 
     char... term2, 
-    typename recursionLevel_t, 
+    typename level_t, 
     typename logicalValue_t, 
     typename calculation_t,
     typename runtimeparameternames_t, 
@@ -196,7 +196,7 @@ namespace LCTL {
           String<
               std::integer_sequence<char,term2...>
           >, 
-          recursionLevel_t, 
+          level_t, 
           logicalValue_t, 
           calculation_t
         >,
@@ -237,8 +237,8 @@ namespace LCTL {
   };
 
   /* term is a string/parameter name and the one and only value in the list of known values does not match. */
-  /*template<class term1, class term2, class recursionLevel, class logicalValue_t, class calculation_t, typename base_t>
-  struct Term<String<term1>,List<std::tuple<String<term2>, recursionLevel, logicalValue_t, calculation_t>>, base_t>{
+  /*template<class term1, class term2, class level, class logicalValue_t, class calculation_t, typename base_t>
+  struct Term<String<term1>,List<std::tuple<String<term2>, level, logicalValue_t, calculation_t>>, base_t>{
   public:
       using replace = FAILURE_ID<110>;
   };*/

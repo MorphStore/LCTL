@@ -20,7 +20,7 @@ namespace LCTL {
     
     template<
         /* input granularity */
-        class processingStyle_t, 
+        typename processingStyle_t, 
         typename node_t, 
         /* output granularity */
         typename base_t, 
@@ -36,7 +36,7 @@ namespace LCTL {
      * Calculation of an parameter. Tokensize known at compile-time. Value is determined at run time.
      */
     template<
-        class processingStyle_t, 
+        typename processingStyle_t, 
         typename name, 
         typename logicalValue_t, 
         size_t numberOfBits_t, 
@@ -144,7 +144,7 @@ namespace LCTL {
      * Tokensize known at compile-time. 
      */
     template<
-        class processingStyle_t, 
+        typename processingStyle_t, 
         typename first,
         typename... knownvalues_t, 
         typename base_t, 
@@ -214,7 +214,7 @@ namespace LCTL {
     
     /* Adaptive Value */
     template<
-        class processingStyle_t, 
+        typename processingStyle_t, 
         typename name_t, 
         typename logicalValue_t, 
         size_t numberOfBits_t, 
@@ -326,7 +326,7 @@ namespace LCTL {
     
     /* Unknown Value (can be everything i.e. Minimum Calculation, Sum, Avg, Multiplication etc.) */
     template<
-        class processingStyle_t, 
+        typename processingStyle_t, 
         typename name, 
         typename logicalValue_t, 
         size_t numberOfBits_t, 

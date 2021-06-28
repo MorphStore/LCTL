@@ -22,7 +22,7 @@ template <
 using delta = 
 ColumnFormat <
   processingStyle_t,
-  Recursion<
+  Loop<
     StaticTokenizer<1>,
     ParameterCalculator<
       ParameterDefinition<

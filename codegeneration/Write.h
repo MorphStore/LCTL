@@ -53,7 +53,10 @@ namespace LCTL {
 #       if LCTL_VERBOSECOMPRESSIONCODE
           if ((bitposition_t + bitwidth_t) >= sizeof(compressedbase_t)*8) std::cout << "  outBase";
 #       endif
-        Incr<((bitposition_t + bitwidth_t) >= (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8), compressedbase_t, 1>::apply(outBase);
+        Incr<
+          ((bitposition_t + bitwidth_t) >= (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8),
+          compressedbase_t, 
+          processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(outBase);
 #       if LCTL_VERBOSECOMPRESSIONCODE
           std::cout << "// " << bitposition_t << " + " << bitwidth_t << " <->" << sizeof(compressedbase_t)*8 << "\n";
           std::cout << "// number of bits rightshift " << bitwidth_t-((bitposition_t + bitwidth_t)%(sizeof(compressedbase_t)*8)) << "\n";
@@ -102,7 +105,10 @@ namespace LCTL {
           if (bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ) std::cout << "  inBase";
 #       endif
         /* Increment inBase if needed */
-        Incr<(bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ), compressedbase_t, 1>::apply(inBase);  
+        Incr<
+          (bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ), 
+          compressedbase_t, 
+          processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(inBase);  
         LeftShift<
           processingStyle_t,
           base_t,
@@ -175,7 +181,10 @@ namespace LCTL {
 #       if LCTL_VERBOSECOMPRESSIONCODE
           if ((bitposition_t + bitwidth_t) >= (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8) std::cout << "  outBase";
 #       endif
-        Incr<((bitposition_t + bitwidth_t) == (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8), compressedbase_t, 1>::apply(outBase);
+        Incr<
+          ((bitposition_t + bitwidth_t) == (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8), 
+          compressedbase_t, 
+          processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(outBase);
         return;
     }
 
@@ -189,7 +198,10 @@ namespace LCTL {
 #       if LCTL_VERBOSECOMPRESSIONCODE
           if ((bitposition_t + bitwidth_t) >= (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8) std::cout << "  inBase";
 #       endif
-        Incr<((bitposition_t + bitwidth_t) == (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8), compressedbase_t, 1>::apply(inBase);
+        Incr<
+          ((bitposition_t + bitwidth_t) == (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8), 
+          compressedbase_t, 
+          processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(inBase);
         return;
     }
   };

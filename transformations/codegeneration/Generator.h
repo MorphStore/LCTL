@@ -15,9 +15,9 @@
 #include "../../codegeneration/Write.h"
 //#include "./functions.h"
 #include "./ParameterGenerator.h"
-#include "./LoopRecursionGenerator.h"
+#include "./RolledLoopGenerator.h"
 #include "./EncoderGenerator.h"
-#include "./StaticRecursionOuterConcatCombiner_TokenGenerator.h"
+#include "./UnrolledLoopOuterConcatCombiner_TokenGenerator.h"
 #include <header/preprocessor.h>
 
 #ifndef LCTL_TRANSFORMATIONS_CODEGNERATION_GENERATOR_H
@@ -39,7 +39,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template<
-    class processingStyle_t, 
+    typename processingStyle_t, 
     typename node_t, 
     typename base_t, 
     size_t tokensize_t,
@@ -53,7 +53,7 @@ namespace LCTL {
    * 
    * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @param <base_t>              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
-   * @param <recursion_t>                   outer recursion node in intermediate tree
+   * @param <loop_t>                   outer loop node in intermediate tree
 
    * @param <tokensize_t>                   tokensize_t should be 0 if not known at compile time, another value otherwise   
    * @param <bitposition>                   next value to encode starts at bitposition
@@ -63,15 +63,15 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template<
-    class processingStyle_t, 
-    typename recursion_t,
+    typename processingStyle_t, 
+    typename loop_t,
     typename base_t,
     size_t tokensize_t,
     typename... parametername_t
   >
   struct Generator<
     processingStyle_t, 
-    FormatIR<recursion_t>, 
+    FormatIR<loop_t>, 
     base_t, 
     tokensize_t,
     /* bitposition at the beginning of en- and decoding */
@@ -81,7 +81,7 @@ namespace LCTL {
       using compressedbase_t = typename processingStyle_t::base_t;
       /**
        * @brief introduces two new variables for pointers to uncompressed and compressed memory regions.
-       * Takes the recursion_t child node and gives it together with processingStyle and processingStyleCompressed to the next Generator.
+       * Takes the loop_t child node and gives it together with processingStyle and processingStyleCompressed to the next Generator.
        * 
        * @param in8         uncompressed input data as uint8_t
        * @param countInLog  number of logical input values
@@ -109,10 +109,10 @@ namespace LCTL {
           std::cout << "  "<< typeString.at(*typeid(base_t).name()) << " * inBase = reinterpret_cast<"<< typeString.at(*typeid(base_t).name()) << " *>(in8);\n";
           std::cout << "  "<< typeString.at(*typeid(compressedbase_t).name()) << " * outBase = reinterpret_cast<"<< typeString.at(*typeid(compressedbase_t).name()) << " *>(out8);\n\n";
         #endif
-        /* recursion_t is LoopRecursion */
+        /* loop_t is RolledLoop */
         Generator<
           processingStyle_t, 
-          recursion_t, 
+          loop_t, 
           base_t,
           tokensize_t,
           0,
@@ -130,7 +130,7 @@ namespace LCTL {
       }
       /**
        * @brief introduces two new variables for pointers to compressed and decompressed memory regions.
-       * Takes the recursion_t child node and gives it together with processingStyle and compressedbase to the next Generator.
+       * Takes the loop_t child node and gives it together with processingStyle and compressedbase to the next Generator.
        * 
        * @param in8         uncompressed input data as uint8_t
        * @param countInLog  number of logical input values
@@ -154,10 +154,10 @@ namespace LCTL {
           std::cout << "  const "<< typeString.at(*typeid(compressedbase_t).name()) << " * outBase = reinterpret_cast<"<< typeString.at(*typeid(compressedbase_t).name()) << " *>(in8);\n";
           std::cout << "  "<< typeString.at(*typeid(base_t).name()) << " * outBase = reinterpret_cast<"<< typeString.at(*typeid(base_t).name()) << " *>(out8);\n\n";
   #     endif
-        /* recursion_t is LoopRecursion */
+        /* loop_t is RolledLoop */
         Generator<
           processingStyle_t, 
-          recursion_t, 
+          loop_t, 
           base_t,
           tokensize_t,
           0,
@@ -181,9 +181,9 @@ namespace LCTL {
    */
 
   /**
-   * @brief Code generation for Static Recursions (unrollable inner loops). No action, because of break condition.
+   * @brief Code generation for UnrolledLoopIR (unrollable inner loops). No action, because of break condition.
    * 
-   * Now, we have a StaticRecursion (as the inner of two recursions). 
+   * Now, we have an UnrolledLoopIR (as the inner of two loops). 
    * At the moment we only handle formats, where the inner combiner writes only tokens.
    * The outer combiner might be a concat combiner.
    * We process the Combiners recursively. 
@@ -191,20 +191,20 @@ namespace LCTL {
    * 
    * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @param <base_t>              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
-   * @param <tokensizeOuterRecursion_t>   tokensize of outer recursion
+   * @param <tokensizeOuterLoop_t>   tokensize of outer loop
    * @param <bitwidth_t>                  bitwidth of the compressed token is fix
-   * @param <inputsize_t>                 to be honest, at the moment I don't know, which number this is. I think it shadows tokensizeOuterRecursion_t
+   * @param <inputsize_t>                 to be honest, at the moment I don't know, which number this is. I think it shadows tokensizeOuterLoop_t
    * @param <bitposition>                 next value to encode starts at bitposition. Does not matter, because here is nothing more to encode/decode
    * @param <parametername_t...>          names of runtime parameters
    * 
-   * @todo inputsize_t: Same as tokensizeOuterRecursion_t?
+   * @todo inputsize_t: Same as tokensizeOuterLoop_t?
    * 
    * @date: 26.05.2021 12:00
    * @author: Juliana Hildebrandt
    */
   template<
     typename processingStyle_t, 
-    size_t tokensizeOuterRecursion_t, 
+    size_t tokensizeOuterLoop_t, 
     size_t bitwidth_t, 
     typename base_t, 
     size_t inputsize_t, 
@@ -214,8 +214,8 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    StaticRecursionIR<
-      tokensizeOuterRecursion_t, 
+    UnrolledLoopIR<
+      tokensizeOuterLoop_t, 
       KnownTokenizerIR<
         1,
         EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
@@ -271,10 +271,10 @@ namespace LCTL {
   };
     
   /**
-   * @brief Code generation for Static Recursions (unrollable inner loops). 
+   * @brief Code generation for UnrolledLoopIR (unrollable inner loops). 
    * The next parameter with a compiletime known value of the outer combiner is encoded/decoded.
    * 
-   * Now, we have a StaticRecursion (as the inner of two recursions). 
+   * Now, we have an UnrolledLoopIR (as the inner of two loops). 
    * At the moment we only handle formats, where the inner combiner writes only tokens.
    * The outer combiner might be a concat combiner.
    * We process the Combiners recursively. 
@@ -282,10 +282,10 @@ namespace LCTL {
    * 
    * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @param <base_t>              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
-   * @param <tokensizeOuterRecursion_t> tokensize of outer recursion
+   * @param <tokensizeOuterLoop_t> tokensize of outer loops
    * @param <bitwidthtype_t>            type of bitwidth_t (bitwidth of token
    * @param <bitwidth_t>                bitwidth of the compressed token is fix
-   * @param <inputsize_t>               to be honest, at the moment I don't know, which number this is. I think it shadows tokensizeOuterRecursion_t
+   * @param <inputsize_t>               to be honest, at the moment I don't know, which number this is. I think it shadows tokensizeOuterLoop_t
    * @param <bitposition>               next value to encode starts at bitposition. Does not matter, because here is nothing more to encode/decode
    * @param <logicalencoding_t>         logical encoding of the tokens
    * @param <tail_t...>                 everything in the outer combiner, that has to be encoded/decoded after the currenct parameter
@@ -296,7 +296,7 @@ namespace LCTL {
    * @param <name_t>                    name of the current parameter
    * @param <parametername_t...>        names of runtime parameters
    * 
-   * @todo inputsize_t: Same as tokensizeOuterRecursion_t?
+   * @todo inputsize_t: Same as tokensizeOuterLoop_t?
    * @todo replace bitwidthparametertype_t and bittwidthtype_t with size_t (?)
    * 
    * @todo this implementation is made for scalar processing and one output track in the combiners:
@@ -308,8 +308,8 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template<
-    class processingStyle_t, 
-    size_t tokensizeOuterRecursion_t,
+    typename processingStyle_t, 
+    size_t tokensizeOuterLoop_t,
     typename bitwidthtype_t,
     bitwidthtype_t bitwidth_t, 
     typename base_t, 
@@ -326,8 +326,8 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    StaticRecursionIR<
-      tokensizeOuterRecursion_t, 
+    UnrolledLoopIR<
+      tokensizeOuterLoop_t, 
       KnownTokenizerIR<
         1,
         EncoderIR<  
@@ -390,8 +390,8 @@ namespace LCTL {
       >::compress(outBase);
       Generator<
         processingStyle_t, 
-        StaticRecursionIR<
-          tokensizeOuterRecursion_t,
+        UnrolledLoopIR<
+          tokensizeOuterLoop_t,
           KnownTokenizerIR<
             1,
             EncoderIR<  
@@ -452,8 +452,8 @@ namespace LCTL {
       
       Generator<
         processingStyle_t, 
-        StaticRecursionIR<
-          tokensizeOuterRecursion_t,
+        UnrolledLoopIR<
+          tokensizeOuterLoop_t,
           KnownTokenizerIR<
             1,
             EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
@@ -471,10 +471,10 @@ namespace LCTL {
   };
 
   /**
-   * @brief Code generation for Static Recursions (unrollable inner loops). 
+   * @brief Code generation for UnrolledLoopIR (unrollable inner loops). 
    * The next parameter might not be a compile known value. The combiner itself only knows its name.
    * 
-   * Now, we have a StaticRecursion (as the inner of two recursions). 
+   * Now, we have a UnrolledLoopIR (as the inner of two loops). 
    * At the moment we only handle formats, where the inner combiner writes only tokens.
    * The outer combiner might be a concat combiner.
    * We process the Combiners recursively. 
@@ -483,9 +483,9 @@ namespace LCTL {
    * 
    * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @param <base_t>              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
-   * @param <tokensizeOuterRecursion_t> tokensize of outer recursion
+   * @param <tokensizeOuterLoop_t> tokensize of outer loop
    * @param <bitwidth_t>                bitwidth of the compressed token is fix
-   * @param <inputsize_t>               to be honest, at the moment I don't know, which number this is. I think it shadows tokensizeOuterRecursion_t
+   * @param <inputsize_t>               to be honest, at the moment I don't know, which number this is. I think it shadows tokensizeOuterLoop_t
    * @param <bitposition_t>               next value to encode starts at bitposition. Does not matter, because here is nothing more to encode/decode
    * @param <logicalencoding_t>         logical encoding of the tokens
    * @param <tail_t...>                 everything in the outer combiner, that has to be encoded/decoded after the currenct parameter
@@ -496,7 +496,7 @@ namespace LCTL {
    * Its position in the tuple is positionInParameterTuple_t
    * @param <parametername_t...>        names of runtime parameters
    * 
-   * @todo inputsize_t: Same as tokensizeOuterRecursion_t?
+   * @todo inputsize_t: Same as tokensizeOuterLoop_t?
    * @todo replace bitwidthparametertype_t and bittwidthtype_t with size_t (?)
    * 
    * @todo this implementation is made for scalar processing and one output track in the combiners:
@@ -508,8 +508,8 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template<
-    class processingStyle_t, 
-    size_t tokensizeOuterRecursion_t, 
+    typename processingStyle_t, 
+    size_t tokensizeOuterLoop_t, 
     size_t bitwidth_t, 
     typename base_t, 
     size_t inputsize_t, 
@@ -525,8 +525,8 @@ namespace LCTL {
   struct Generator<
   /* input granularity */
   processingStyle_t, 
-  StaticRecursionIR<
-    tokensizeOuterRecursion_t, 
+  UnrolledLoopIR<
+    tokensizeOuterLoop_t, 
     KnownTokenizerIR<
       1,
       EncoderIR<  
@@ -594,8 +594,8 @@ namespace LCTL {
         );
         Generator<
           processingStyle_t, 
-          StaticRecursionIR<
-            tokensizeOuterRecursion_t,
+          UnrolledLoopIR<
+            tokensizeOuterLoop_t,
             KnownTokenizerIR<
               1,
               EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
@@ -644,8 +644,8 @@ namespace LCTL {
         >::apply(inBase);             
         Generator<
           processingStyle_t, 
-          StaticRecursionIR<
-            tokensizeOuterRecursion_t,
+          UnrolledLoopIR<
+            tokensizeOuterLoop_t,
             KnownTokenizerIR<
               1,
               EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
@@ -664,7 +664,7 @@ namespace LCTL {
   };
 
   /**
-   * @brief Code generation for Static Recursions (unrollable inner loops). 
+   * @brief Code generation for UnrolledLoopIR (unrollable inner loops). 
    * This specialization handles the case, that the outer combiner concatenates
    * first data blocks and afterwards parameters. 
    * The order is difficulft to implement. And the only formats I have in mind is VarintPU.
@@ -674,15 +674,15 @@ namespace LCTL {
    * 
    * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @param <base_t>              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
-   * @param <tokensizeOuterRecursion_t> tokensize of outer recursion
+   * @param <tokensizeOuterLoop_t> tokensize of outer loop
    * @param <bitwidth_t>                bitwidth of the compressed token is fix
-   * @param <inputsize_t>               to be honest, at the moment I don't know, which number this is. I think it shadows tokensizeOuterRecursion_t
+   * @param <inputsize_t>               to be honest, at the moment I don't know, which number this is. I think it shadows tokensizeOuterLoop_t
    * @param <bitposition_t>               next value to encode starts at bitposition. Does not matter, because here is nothing more to encode/decode
    * @param <logicalencoding_t>         logical encoding of the tokens
    * @param <tail_t...>                 everything in the outer combiner, that has to be encoded/decoded after the currenct parameter
    * @param <parametername_t...>        names of runtime parameters
    * 
-   * @todo inputsize_t: Same as tokensizeOuterRecursion_t?
+   * @todo inputsize_t: Same as tokensizeOuterLoop_t?
    * @todo replace bitwidthparametertype_t and bittwidthtype_t with size_t (?)
    * 
    * @todo this implementation is made for scalar processing and one output track in the combiners:
@@ -694,9 +694,9 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template<
-    class processingStyle_t,
+    typename processingStyle_t,
     typename basev_t,
-    size_t tokensizeOuterRecursion_t, 
+    size_t tokensizeOuterLoop_t, 
     size_t bitwidth_t, 
     typename base_t, 
     size_t bitposition, 
@@ -707,8 +707,8 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    StaticRecursionIR<
-      tokensizeOuterRecursion_t, 
+    UnrolledLoopIR<
+      tokensizeOuterLoop_t, 
       KnownTokenizerIR<
         1,
         EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >

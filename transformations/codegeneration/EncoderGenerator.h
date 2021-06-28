@@ -31,7 +31,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template<
-    class processingStyle_t, 
+    typename processingStyle_t, 
     typename node_t, 
     typename base_t, 
     size_t tokensize_t,
@@ -54,7 +54,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template<
-    class processingStyle_t, 
+    typename processingStyle_t, 
     typename logicalencoding_t, 
     typename base_t, 
     size_t bitwidth_t, 

@@ -1,12 +1,12 @@
 /* 
- * File:   StaticRecursionWOEncodedParametersGenerator.h
+ * File:   UnrolledLoopWOEncodedParametersGenerator.h
  * Author: Juliana Hildebrandt
  *
  * Created on 12. März 2021, 11:55
  */
 
-#ifndef LCTL_TRANSFORMATIONS_CODEGENERATION_STATICRECURSIONWOENCODEDPARAMETERS_H
-#define LCTL_TRANSFORMATIONS_CODEGENERATION_STATICRECURSIONWOENCODEDPARAMETERS_H
+#ifndef LCTL_TRANSFORMATIONS_CODEGENERATION_UNROLLEDLOOPWOENCODEDPARAMETERS_H
+#define LCTL_TRANSFORMATIONS_CODEGENERATION_UNROLLEDLOOPWOENCODEDPARAMETERS_H
 
 #include "../../Definitions.h"
 #include "../../intermediate/procedure/Concepts.h"
@@ -36,12 +36,12 @@ namespace LCTL {
   struct Generator;
 
   /**
-   * @brief Static Recursion with inner tokensize == 1, 
+   * @brief Unrolled Loop with inner tokensize == 1, 
    * bitwidth of each  data token is knwon at compiletime,
    * each one of the two combiners concatenates only tokens without parameters.
    * 
    * @param <processingStyle>           TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
-   * @param <numberOfValuesPerBlock_t>  blocksize of static recursion
+   * @param <numberOfValuesPerBlock_t>  blocksize of unrolled loop
    * @param <bitwidth_t>                same bitwidth for each value of the block
    * @param <base_t>                    datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
    * @param <remainingValuesToWrite_t>  number of values in the current block, that have been not yet processed
@@ -64,7 +64,7 @@ namespace LCTL {
     typename... parametername_t>
   struct Generator<
     processingStyle_t, 
-    StaticRecursionIR<
+    UnrolledLoopIR<
       numberOfValuesPerBlock_t, 
       KnownTokenizerIR<
         1,
@@ -117,7 +117,7 @@ namespace LCTL {
           Incr<true, base_t, 1>::apply(inBase);
           Generator<
             processingStyle_t, 
-            StaticRecursionIR<
+            UnrolledLoopIR<
               numberOfValuesPerBlock_t,
               KnownTokenizerIR<
                 1,
@@ -161,13 +161,13 @@ namespace LCTL {
          * inBase has to be increased by x, iff tokensize is x.
          */
 #       if LCTL_VERBOSEDECOMPRESSIONCODE
-          std::cout << "// Decompress StaticRecursion 1\n";
+          std::cout << "// Decompress Unrolled Loop 1\n";
           std::cout << "  outBase ";
 #       endif
         Incr<true, base_t, 1>::apply(outBase);  
         Generator<
           processingStyle_t, 
-          StaticRecursionIR<
+          UnrolledLoopIR<
             numberOfValuesPerBlock_t,
             KnownTokenizerIR<
               1,
@@ -186,14 +186,14 @@ namespace LCTL {
   };
 
   /**
-   * @brief Static Recursion with inner tokensize == 1, 
+   * @brief Unrolled Loop with inner tokensize == 1, 
    * bitwidth of each  data token is knwon at compiletime,
    * each one of the two combiners concatenates only tokens without parameters.
-   * This specialization is the breack of values-writing recursion 
+   * This specialization is the break of values-writing loop 
    * (all values of the block have been written/read, remainingValuesToWrite_t == 0)
    * 
    * @param <processingStyle>           TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
-   * @param <numberOfValuesPerBlock_t>  blocksize of static recursion
+   * @param <numberOfValuesPerBlock_t>  blocksize of unrolled loop
    * @param <bitwidth_t>                same bitwidth for each value of the block
    * @param <base_t>                    datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
    * @param <bitposition_t>             next value to encode starts at bitposition
@@ -214,7 +214,7 @@ namespace LCTL {
     typename... parametername_t>
   struct Generator<
     processingStyle_t, 
-    StaticRecursionIR<
+    UnrolledLoopIR<
       numberOfValuesPerBlock_t, 
       KnownTokenizerIR<
         1,
@@ -275,7 +275,7 @@ namespace LCTL {
       std::tuple<parameter_t...> parameters
     ) {
 #       if LCTL_VERBOSEDECOMPRESSIONCODE
-          std::cout << "// Decompress StaticRecursion 2\n";
+          std::cout << "// Decompress Unrolled Loop 2\n";
           if (bitposition_t != 0) std::cout << "  inBase ";
 #       endif
         Incr<bitposition_t != 0, base_t, 1>::apply(inBase);       
@@ -283,5 +283,5 @@ namespace LCTL {
     }
   };
 }
-#endif /* LCTL_TRANSFORMATIONS_CODEGENERATION_STATICRECURSIONWOENCODEDPARAMETERS_H */
+#endif /* LCTL_TRANSFORMATIONS_CODEGENERATION_UNROLLEDLOOPWOENCODEDPARAMETERS_H */
 

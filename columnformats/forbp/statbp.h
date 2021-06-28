@@ -39,10 +39,10 @@ template <
 using statbp = 
 ColumnFormat <
   processingStyle_t,
-  Recursion<
+  Loop<
     StaticTokenizer< sizeof(typename processingStyle_t::base_t) * 8>,
     ParameterCalculator<>,
-    Recursion<
+    Loop<
       StaticTokenizer<1>,
       ParameterCalculator<>,
       Encoder<Token, Size<bitwidth_t>>,

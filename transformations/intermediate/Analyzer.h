@@ -16,7 +16,7 @@
 //#include "../lib/combiner.h"
 //#include "./functions.h"
 //#include "./Term.h"
-#include "./RecursionAnalyzer.h"
+#include "./LoopAnalyzer.h"
 //#include <tuple>
 #include <header/vector_extension_structs.h>
 #include <header/vector_primitives.h>
@@ -31,7 +31,7 @@ namespace LCTL {
    * @TODO Comment is old and has to be rewritten
    * 
    * @param <base_t>           datatype of uncompressed and decompressed values
-   * @param <recursion_t>      outer recursion
+   * @param <loop_t>      outer loop
    * @param <compressedbase_t> datatype to handle the compressed memory region
    * 
    *  Input for the Analyzer is a Collate-model template tree. 
@@ -44,29 +44,29 @@ namespace LCTL {
    *  a tree node has more than one successor.
    *  Simplified Example for  BP32:
    * 
-   *  recursion, size = 0/32
+   *  loop, size = 0/32
    *  |- tokensize = 32, not encodable
    *     |- minimum = unknown, encodable with 32 bits
    *        |- bit width = unknown, encodable with 32 bits (here, we implement something like a switch case, because we know all cases of bitwidhts)
    *           |- bitwidth = 0, encodable with 32 bits
-   *              |- recursion, size = 64/0
+   *              |- loop, size = 64/0
    *                 |- tokensize = 1, not encodable
    *           |- bitwidth = 1, encodable with 32 bits
-   *              |- recursion, size = 96/0
+   *              |- loop, size = 96/0
    *                 |- tokensize = 1, not encodable
    *           ...
    *           |- bitwidth = 32, encodable with 32 bits
-   *              |- recursion, size = 1088/0
+   *              |- loop, size = 1088/0
    *                 |- tokensize = 1, not encodable
    * 
    * Simplified example for Bitpacking with bitwidth 10:
    * 
-   *  recursion, size = 10/0
+   *  loop, size = 10/0
    *  |- tokensize = 1
    * 
    * Simplified example for VarintSU
    * 
-   * recursion, size = 0/8
+   * loop, size = 0/8
    * |- tokensize = 1
    *    |- units = unknown
    *       |- units = 1
@@ -76,24 +76,24 @@ namespace LCTL {
    *       |- units = 5
    * 
    * (2) size-attribute
-   * corresponds to a recursion. Determines the size of a block defined in
+   * corresponds to a loop. Determines the size of a block defined in
    * a combiner (and the encoding functions in parameter definitions and
    * encders as well as the number of values defined in the tokenzer).
    * The size can be a fix value (i.e. 32 Bits, represented as 32/0)
    * or a multiple of a bitwidth(i.e. 0/32 for a multiple of 32)
    * 
    * (3) Control flow
-   * (3.1) If the size of the outer recursion is not a multiple of the base datatype  and fix,
+   * (3.1) If the size of the outer loop is not a multiple of the base datatype  and fix,
    * a cycle calculation has to be done TODO
-   * (3.2) If the size of the outer recursion is not a multiple of 8/16/...  and fix,
+   * (3.2) If the size of the outer loop is not a multiple of 8/16/...  and fix,
    * the out-pointer has to be casted and a cycle calculation has to be done TODO => catched by an optional outbase datatype
-   * (3.3) If the size of the outer recursion is not a multiple of the base datatype and variable,
+   * (3.3) If the size of the outer loop is not a multiple of the base datatype and variable,
    * the loop can not be enrolled
-   * (3.4) If the size of the outer recursion is not a multiple of 8/16/... and variable,
+   * (3.4) If the size of the outer loop is not a multiple of 8/16/... and variable,
    * the loop can not be enrolled
-   * (3.5) If the size of the outer recursion is a multiple of the base datatype,
+   * (3.5) If the size of the outer loop is a multiple of the base datatype,
    * the loop can be enrolled
-   * (3.6) If the size of the outer recursion is a multiple of 8/16/...,
+   * (3.6) If the size of the outer loop is a multiple of 8/16/...,
    * the loop can be enrolled
    * 
    * @date: 26.05.2021 12:00
@@ -101,7 +101,7 @@ namespace LCTL {
    */
     
   /* Forward Declaration */
-  template<typename base_t, class recursion_t, typename compressedbase_t>
+  template<typename base_t, class loop_t, typename compressedbase_t>
   struct ColumnFormat;
     
   /**
@@ -123,7 +123,7 @@ namespace LCTL {
    * @param <base_t>      input data type
    * @param <tokenizer_t> outer tokenizer
    * @param <pads...>     parameter defintitions
-   * @param <recursion_t> inner recursion or encoder
+   * @param <loop_t> inner loop or encoder
    * @param <combiner_t>  outer combiner
    * @param <baseout_t>   data type to handle the memory region for the compressed data
    * 
@@ -134,17 +134,17 @@ namespace LCTL {
     typename base_t, 
     class tokenizer_t, 
     class... pads, 
-    class recursion_t, 
+    class loop_t, 
     class combiner_t, 
     typename baseout_t
   >
   struct Analyzer<
     ColumnFormat<
       base_t, 
-      Recursion<
+      Loop<
         tokenizer_t, 
         ParameterCalculator<pads...>,  
-        recursion_t, 
+        loop_t, 
         combiner_t
       >, 
       baseout_t
@@ -155,12 +155,12 @@ namespace LCTL {
           ParameterCalculator<pads...>,
           /* input datatype */
           base_t,
-          /* recursion level */
+          /* loop level */
           (size_t) 0,
-          /* recursion */
-          Recursion<tokenizer_t, ParameterCalculator<pads...>, recursion_t, combiner_t>, 
-          /* list of known values (tuples of name string, recursion level, logical value as Int<...> and number of bits)
-             and unknown values (tuples of name string, recursion level, logical value as term and number of bits) */
+          /* loop */
+          Loop<tokenizer_t, ParameterCalculator<pads...>, loop_t, combiner_t>, 
+          /* list of known values (tuples of name string, loop level, logical value as Int<...> and number of bits)
+             and unknown values (tuples of name string, loop level, logical value as term and number of bits) */
           List<>,
           /* list of combiners, outer combiners first (inner combiners are pushed back) */
           List<>,

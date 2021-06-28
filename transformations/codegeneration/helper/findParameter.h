@@ -199,7 +199,7 @@ namespace LCTL {
         typename... parametername_t
     >
     struct findParameter<
-        StaticRecursionIR<
+        UnrolledLoopIR<
             inputsize_t,
             next_t, // Tokenizer
             combiner_t, 

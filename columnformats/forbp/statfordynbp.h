@@ -38,7 +38,7 @@ template <
 >
 using statfordynbp = ColumnFormat <
   processingStyle_t,
-  Recursion<
+  Loop<
     StaticTokenizer<sizeof(typename processingStyle_t::base_t) * 8 * scale_t>,
     ParameterCalculator<
       ParameterDefinition<
@@ -48,7 +48,7 @@ using statfordynbp = ColumnFormat <
         >
       >
     >,
-    Recursion<
+    Loop<
       StaticTokenizer<1>,
       ParameterCalculator<>,
       Encoder<

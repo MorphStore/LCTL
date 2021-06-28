@@ -187,12 +187,8 @@ void print_bin(T* in, size_t length, size_t printnumbits, std::ostream& s = std:
 
 template<typename T>
 void print_compare(T* in, T* in2, size_t length, size_t printnumbits, std::ostream& s = std::cout) {
-    if (length <= 0) return;
-    size_t cnt = length - 1;
-    while (*(in + cnt) == 0 && *(in2 + cnt) == 0 && cnt >= 0) {
-        cnt--;
-    }
-    for (int i = 0; i <= cnt; i++) {
+
+    for (int i = 0; i < length; i++) {
         s << "(" << i << ")\t";
         for (int j = std::min(sizeof (T)*8 - 1, printnumbits - 1); j >= 0; --j)
             s << ((*(in + i) >> j) & 1);
@@ -239,31 +235,6 @@ void printTree(std::string str) {
 
     }
     std::cout << str << "\n";
-}
-
-std::string execCommand(const std::string cmd, int& out_exitStatus) {
-    out_exitStatus = 0;
-    auto pPipe = ::popen(cmd.c_str(), "r");
-    if(pPipe == nullptr) {
-        throw std::runtime_error("Cannot open pipe");
-    }
-
-    std::array<char, 256> buffer;
-
-    std::string result;
-
-    while(not std::feof(pPipe)) {
-        auto bytes = std::fread(buffer.data(), 1, buffer.size(), pPipe);
-        result.append(buffer.data(), bytes);
-    }
-
-    auto rc = ::pclose(pPipe);
-
-    if(WIFEXITED(rc)) {
-        out_exitStatus = WEXITSTATUS(rc);
-    }
-
-    return result;
 }
 
 class warning : public std::exception{

@@ -34,18 +34,29 @@ namespace LCTL {
    * @return                          size of the compressed values, number of bytes 
    */
   template <typename conversion_t>
-  struct Cascade{
+  struct Cascade<conversion_t>{
     
-    static constexpr size_t staticTokensize = conversion_t::staticTokensize;
+    static constexpr size_t lcm_tokensize_t = conversion_t::staticTokensize;
     
-    template<typename frontConversion_t>
-    using pushFront = Cascade<frontConversion_t, conversion_t...>; 
+    template<typename firstConversion_t>
+    using pushFront = Cascade<firstConversion_t, conversion_t>; 
     
-    MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t apply(
+    using first_t = conversion_t;
+    
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphDirectly(
       const uint8_t * uncompressedMemoryRegion8,
       size_t countInLog,
-      uint8_t * & compressedMemoryRegion8) {
+      uint8_t * & compressedMemoryRegion8) 
+    {    
         return conversion_t:: apply(uncompressedMemoryRegion8, countInLog, compressedMemoryRegion8);  
+    }
+    
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphIndirectly(
+      const uint8_t * uncompressedMemoryRegion8,
+      size_t countInLog,
+      uint8_t * & compressedMemoryRegion8) 
+    {       
+        return morphDirectly(uncompressedMemoryRegion8, countInLog, compressedMemoryRegion8);  
     }
   };
   
@@ -68,22 +79,30 @@ namespace LCTL {
     /**
      * least commun multiple of fix tokensizes
      */
-    static constexpr size_t lcm_tokensize_t = typename lcm<firstConversion_t::staticTokensize, Cascade<conversion_t...>::lcm_tokensize_t>::value;
+    static constexpr size_t lcm_tokensize_t = lcm<
+      firstConversion_t::staticTokensize, 
+      Cascade<secondConversion_t, conversion_t...>::lcm_tokensize_t
+    >::value;
     
     template<typename frontConversion_t>
     using pushFront = Cascade<frontConversion_t, firstConversion_t, secondConversion_t, conversion_t...>; 
     
+    using first_t = firstConversion_t;
+    
     /**
      * @brief eliminate  ..., Decompress<T>, Compress<T>,... in the cascade
      */
-    using eliminate = std::conditional<
+    /*using eliminate = std::conditional<
             std::is_same<
-              firstConversion_t::format_t,
-              secondConversion_t::format_t>
+              typename firstConversion_t::format_t,
+              typename secondConversion_t::format_t
             >::value,
             Cascade<conversion_t...>,
-            pushFront<firstConversion_t, Cascade<secondConversion_t, conversion_t...>::eliminate>;
-          >::type;
+            typename pushFront<
+              firstConversion_t, 
+              typename Cascade<secondConversion_t, conversion_t...>::eliminate
+            >
+          >::type;*/
     
     /**
      * @brief cascade with several conversions
@@ -96,21 +115,62 @@ namespace LCTL {
      * @date: 14.06.2021 12:00
      * @author: Juliana Hildebrandt
      */
-    MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t apply(
-      const uint8_t * uncompressedMemoryRegion8,
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphDirectly(
+        const uint8_t * & uncompressedMemoryRegion8,
         size_t countInLog,
         uint8_t * & compressedMemoryRegion8) 
     {
-      uint8_t * outputRegionFirstConversion8 = (uint8_t *) malloc(sizeof(firstConversion_t::format_t::base_t) * lcm_tokensize_t);
-      size_t outsize = firstConversion_t::apply(
-          uncompressedMemoryRegion8,
+      const uint8_t * uncompressedMemoryRegion8IterationFirstConversion = uncompressedMemoryRegion8;
+      uint8_t * outputRegionFirstConversion8 = (uint8_t *) malloc(sizeof(typename firstConversion_t::format_t::base_t) * lcm_tokensize_t);
+      uint8_t * compressedMemoryRegion8Start = compressedMemoryRegion8;
+      
+      size_t i = lcm_tokensize_t;
+      while(i <= countInLog) {
+        uint8_t * outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
+        firstConversion_t::apply(
+          uncompressedMemoryRegion8IterationFirstConversion,
           lcm_tokensize_t,
-          outputRegionFirstConversion8
-        ) -
-        compressedMemoryRegion8;
-      Cascade<conversion_t...>::apply(outputRegionFirstConversion8, lcm_tokensize_t, compressedMemoryRegion8);
+          outputRegionFirstConversion8IterationFirstConversion
+        );
+        outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
+        Cascade<secondConversion_t, conversion_t...>::morphDirectly(
+                outputRegionFirstConversion8IterationFirstConversion, 
+                lcm_tokensize_t, 
+                compressedMemoryRegion8);
+        i += lcm_tokensize_t;
+      }
+      free(outputRegionFirstConversion8);
+      
+      size_t size = compressedMemoryRegion8 - compressedMemoryRegion8Start;
+      compressedMemoryRegion8 = compressedMemoryRegion8Start;
+      return size;
     }
   
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphIndirectly(
+        const uint8_t * & uncompressedMemoryRegion8,
+        size_t countInLog,
+        uint8_t * & compressedMemoryRegion8) 
+    {
+      uint8_t * outputRegionFirstConversion8 = (uint8_t *) malloc(sizeof(typename firstConversion_t::format_t::base_t) * 2);
+      uint8_t * outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
+      uint8_t * compressedMemoryRegion8Start = compressedMemoryRegion8;
+      
+      firstConversion_t::apply(
+          uncompressedMemoryRegion8,
+          countInLog,
+          outputRegionFirstConversion8IterationFirstConversion
+        );
+        outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
+        Cascade<secondConversion_t, conversion_t...>::morphIndirectly(
+                outputRegionFirstConversion8IterationFirstConversion, 
+                countInLog, 
+                compressedMemoryRegion8);
+      free(outputRegionFirstConversion8);
+      
+      size_t size = compressedMemoryRegion8 - compressedMemoryRegion8Start;
+      compressedMemoryRegion8 = compressedMemoryRegion8Start;
+      return size;
+    }
   };
 }
 

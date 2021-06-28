@@ -78,7 +78,7 @@ namespace LCTL {
   template <
     typename tokenizer_t, 
     typename combiner_t>
-  struct LoopRecursionIR {};
+  struct RolledLoopIR {};
 
   /**
    * @brief This recursion an be unrolled, because input size is known at compile time and we have a static tokenizer
@@ -98,7 +98,7 @@ namespace LCTL {
     typename tokenizer_t,
     typename combiner_t,
     typename outerCombiner_t>
-  struct StaticRecursionIR {};
+  struct UnrolledLoopIR {};
 
   /**
    * @brief Easy case. Specialization of unrollabe recursion. Here, additionally to compiletime-known number of input values (static outer tokenizer),
@@ -119,7 +119,7 @@ namespace LCTL {
     typename next_t,
     typename combiner_t,
     typename outerCombiner_t>
-  struct StaticRecursionIR<
+  struct UnrolledLoopIR<
     inputsize_t, 
     KnownTokenizerIR<logval_t, next_t>, 
     combiner_t, 

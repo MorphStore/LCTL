@@ -1,14 +1,14 @@
 /* 
- * File:   LoopRecursionGenerator.h
+ * File:   RolledLoopGenerator.h
  * Author: Juliana Hildebrandt
  *
  * Created on 12. März 2021, 11:39
  */
 
-#ifndef LCTL_TRANSFORMATIONS_CODEGENERATION_LOOPRECURSIONGENERATOR_H
-#define LCTL_TRANSFORMATIONS_CODEGENERATION_LOOPRECURSIONGENERATOR_H
+#ifndef LCTL_TRANSFORMATIONS_CODEGENERATION_ROLLEDLOOPGENERATOR_H
+#define LCTL_TRANSFORMATIONS_CODEGENERATION_ROLLEDLOOPGENERATOR_H
 
-#include "./StaticRecursionWOEncodedParametersGenerator.h"
+#include "./UnrolledLoopWOEncodedParametersGenerator.h"
 #include "../../Definitions.h"
 
 namespace LCTL {
@@ -27,7 +27,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */ 
   template<
-    class processingStyle_t, 
+    typename processingStyle_t, 
     typename node_t, 
     typename base_t, 
     size_t tokensize_t,
@@ -36,13 +36,13 @@ namespace LCTL {
   struct Generator;
 
   /**
-   * @brief Loop for LoopRecursion
+   * @brief Loop
    * 
    * @param <processingStyle_t>           TVL Processing Style, contains also input granularity for scalar cases
-   * @param <tokensize_t>                 fix tokensize in a loop recursion  
+   * @param <tokensize_t>                 fix tokensize in a loop 
    * @param <next_t>                      next node in the intermediate representation
    * @param <base_t>                      datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
-   * @param <combiner_t>                  Combiner of LoopRecursion                   
+   * @param <combiner_t>                  Combiner of rolled loop                  
    * @param <bitposition_t>               next value to encode starts at bitposition                
    * @param <parametername_t...>          names of runtime parameters
    * 
@@ -51,7 +51,7 @@ namespace LCTL {
    */
   template<
     /* base for uncompressed values */
-    class processingStyle_t, 
+    typename processingStyle_t, 
     size_t tokensize_t, 
     typename next_t, 
     /* base for compressed values */
@@ -62,7 +62,7 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    LoopRecursionIR<
+    RolledLoopIR<
       KnownTokenizerIR<
         tokensize_t, 
         next_t
@@ -109,11 +109,11 @@ namespace LCTL {
             if ( countInLog < tokensize_t) 
               std::cout << LCTL_WARNING << "Amount of data ("<< countInLog << " values) to low for blocksize (" << tokensize_t << ")\n";
 #         endif
-          /* Loop Implementation for Recursion */
+          /* Loop Implementation */
           while(i <= countInLog) {
               Generator<
                 processingStyle_t, 
-                /* next_t can be Parameter or Recursion or Encoder*/      
+                /* next_t can be Parameter or Loop or Encoder*/      
                 next_t, 
                 base_t, 
                 tokensize_t, 
@@ -163,7 +163,7 @@ namespace LCTL {
 #         endif
           size_t i = tokensize_t;
           while(i <= countInLog) {
-            /* next_t can be Parameter or Recursion or Encoder*/
+            /* next_t can be Parameter or Loop or Encoder*/
             Generator<
               processingStyle_t, 
               next_t, 
@@ -190,14 +190,14 @@ namespace LCTL {
   };
     
   /**
-   * @brief We have a recursion that can not be unrolled (an input with a runtime-known size, same situation in the above specialization)
+   * @brief We have a loop that can not be unrolled (an input with a runtime-known size, same situation in the above specialization)
    * and a tokenizer that calculates the tokensize data-dependently
    * 
    * @param <processingStyle_t>            TVL Processing Style, contains also input granularity for scalar cases
    * @param <logcalc_t>                    calculation rule for the tokensize 
    * @param <next_t>                       next node in the intermediate representation
    * @param <processingStyleCompressed_t>  TVL Processing Style, contains also possibly diferent output granularity for scalar cases
-   * @param <combiner_t>                   Combiner of LoopRecursion                   
+   * @param <combiner_t>                   Combiner of rolled loop                
    * @param <bitposition>                  next value to encode starts at bitposition                
    * @param <parametername_t...>           names of runtime parameters
    * 
@@ -216,7 +216,7 @@ namespace LCTL {
     typename... parametername_t>
   struct Generator<
     processingStyle_t, 
-    LoopRecursionIR<
+    RolledLoopIR<
       UnknownTokenizerIR<logcalc_t>,
       combiner_t
     >,
@@ -272,5 +272,5 @@ namespace LCTL {
   };
 }
 
-#endif /* LCTL_TRANSFORMATIONS_CODEGENERATION_LOOPRECURSIONGENERATOR_H */
+#endif /* LCTL_TRANSFORMATIONS_CODEGENERATION_ROLLEDLOOPGENERATOR_H */
 
