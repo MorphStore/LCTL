@@ -58,7 +58,7 @@ This chapter contains a collection of basics and conventions for lightweight com
 
 Please read [Endianness](https://en.wikipedia.org/wiki/Endianness) for a better understanding.
 
-Byte order or endianness is the order or sequence of bytes belonging to binary data in main-memory. In principle we have "big-endian (BE)" and "little-endian" (LE). A big-endian system stores the most significant byte of a word at the smallet memory address and the least significante byte at the largest. A little-endian system does this the other way around (also called "Intel format"). Because today's PCs used the little-endian format, our algorithms and implementations are adaptedto this architecture. In example, the 32-bit integer 168496141 (hexadecimal 0x0A0B0C0D) consists of 4 Bytes. In a little-endian system, the 0D byte is stored at the lowest address, the 0A byte at the largest adress.
+Byte order or endianness is the order or sequence of bytes belonging to binary data in main-memory. In principle we have "big-endian (BE)" and "little-endian" (LE). A big-endian system stores the most significant byte of a word at the smallet memory address and the least significante byte at the largest. A little-endian system does this the other way around (also called "Intel format"). Because today's PCs used the little-endian format, our algorithms and implementations are adapted to this architecture. In example, the 32-bit integer 168496141 (hexadecimal 0x0A0B0C0D) consists of 4 Bytes. In a little-endian system, the 0D byte is stored at the lowest address, the 0A byte at the largest adress.
 <p align="center">
   <img width="200" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Little-Endian.svg/300px-Little-Endian.svg.png">
 </p>
@@ -111,9 +111,9 @@ size_t compress(
  size_t countIn, 
  uint32_t * & out /* compressed */ ) 
 {
+ uint32_t * outstart = out;  
  for (int i = 0; i < countIn, i += 32)
- {                          
-  uint32_t * outstart = out;                          
+ {                                                  
   *out = in; /* value 1 */
   in++;
   *out |= in << 12; /* value 2 */
@@ -295,11 +295,11 @@ template<
 
 which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here. If possible, those templates are reused for the intermediate representation.
 
-Regarding to functionality, it looks a little different with the file ```LCTL/language/Format.h``` containing only a wrapper struct named ```Format```. It starts with the following lines:
+Regarding to functionality, it looks a little different with the file ```LCTL/language/COlumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
 
 ```cpp
 template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
-  struct Format {
+  struct ColumnFormat {
   ...
   }
 ```
@@ -338,7 +338,7 @@ In the following you see the implementation of an example algorithm for Static B
 !   typename inputDatatype_t = NIL
   >
   using statbp = 
-- Format <
+- ColumnFormat <
 !   processingStyle_t,
 -   Recursion <
 -     StaticTokenizer< 
@@ -369,10 +369,13 @@ In the following you see the implementation of an example algorithm for Static B
 ```
 
 All templates concerning Collate concepts are highlighted in red, calculations are highlighted in green, and processing information is highlighted in orange.
+The models specifies the compressed columnar format as follows.
+
+The columnar format with the type alias stabp can be parametrized with a processingStyle, a bitwidth, and optionally with an inputDatatype. The TVL processingStyle (e.g. sse2<v128<uint32_t>>) defines the register width respectively vector size (e.g. 128 Bit, vector datatype \_mm128i) which is used to operate on the uncompressed, compressed and decompressed data and the data type of the components inside the vector (e.g. 4 values of base datatype uint32_t). In the simplest case, we prefer a scalar processing (e.g. scala<v64<uint64_t>>), which means, that the memory area of the compressed values is iterated as an array of 64 Bit values. Only in the scalar case it is possible, that the memory areas for uncompressed and decompressed values have an other datatype, which might be additionally mentioned as inputDatatype. This concerns the number of incrementations an bitshifts during the data compresson and decompression. Depending on the base_t datatype of the compressed data, the first tokenizer defines blocks of values, such that after compressing the whole block with a random bitsize, a word border (corresponding to the base_t datatype of the compressed data) is hit. In the current example, we would used blocks of 64 values, because for each bitwidth, we need $ 64 \* bitwidth $ bits to encode the whole block, which hits a 64-bit word border. Each single value inside the block is encoded with a bitwidth given from outside as a template parameter. The inner Combiner concats all 64 null suppressed values. The ```LCTL_UNALIGNED``` parameter specifies, that all values are written one after each other without taking care of word borders. The outer combiner is responsible to concat all of those blocks. In contrast to that, the outer combiner starts each new block at a new 64 Bit word.
 
 ## The Intermediate Layer <a name="TheIntermediateLayer"></a>
 
-The intermediate layer serves as a basic structure of the compression as well as the decompression function. At this point, we will only define the used templates and explain why they are used, not the transformation from the model to the intermediate representation. We follow the inroduced distincation between the COllate and the calculation level. The code is situated in ```LCTL/intermediate/```.
+The intermediate layer serves as a basic structure of the compression as well as the decompression function. At this point, we will only define the used templates and explain why they are used, not the transformation from the model to the intermediate representation. We follow the introduced distinction between the Collate and the calculation level. The code is situated in ```LCTL/intermediate/```.
 
 ### Procedure Templates <a name="ProcedureTemplates"></a>
 
@@ -390,11 +393,11 @@ template <
   struct UnknownValueIR{};
 ```  
 and distinguishes by a name, the logical calculation rule, the rule to calculate the bitwidth (or a number) and a child node represenating further algorithmic steps. In the case of bitwidth determination, this calculations are done at runtime to, but there is a difference. For the parameter assignment only a small set of different bitwidths has to be considered. In manual compression implementations, often a switch case is used. During the code generation step, we will recreate this kind of control flow with TMP. The used concept here is ```SwitchvalueIR```, with a list of child nodes for each case. Each child node is implemented as a 
-```KnownValueIR```, because inside the special case, the value, i.e. the bitwidth is known at compile time. besides, there exists an ```AdaptiveValueIR``` wrapper for adaptive values.
+```KnownValueIR```, because inside the special case, the value, e.g. the bitwidth is known at compile time. besides, there exists an ```AdaptiveValueIR``` wrapper for adaptive values.
 
 #### Known and Unknown Tokenizers <a name="KnownandUnknwonTokenizers"></a>
 
-We have a similar situation for tokenizers. At the moment, only static tokenizers ouputting a compile time known number of integral values are supported. Thus, we use a ```KnownTokenizerIR```. There also exists a template ```UnknownTokenizerIR```. For case distinctions, i.e. for Simple formats, the ```SwitchTokenizerIR``` might be usesful.
+We have a similar situation for tokenizers. At the moment, only static tokenizers ouputting a compile time known number of integral values are supported. Thus, we use a ```KnownTokenizerIR```. There also exists a template ```UnknownTokenizerIR```. For case distinctions, e.g. for Simple formats, the ```SwitchTokenizerIR``` might be usesful.
 
 #### Loop Recursions and Static Recursions <a name="LoopRecursionsandStaticRecursions"></a>
 
