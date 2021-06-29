@@ -281,7 +281,7 @@ In this section, we explain the language layer, the Collate template definitions
 
 ### The Collate Templates <a name="TheCollateTemplates"></a>
 
-All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/language```. One of the two files is named ```LCTL/language/Concepts.h```. It contains all Collate concepts as template structs. An example is the Recursion struct
+All templates to specify an algorithm (Collate, Calculation and Processing templates) have to be defined. You can find the Collate concept templates in ```LCTL/language```. One of the two files is named ```LCTL/language/Concepts.h```. It contains all Collate concepts as template structs. An example is the Loop struct
 
 ```cpp
 template<
@@ -290,12 +290,12 @@ template<
     typename recursion_t, 
     typename combiner_t
   >
-  struct Recursion{};
+  struct Loop{};
 ```
 
 which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here. If possible, those templates are reused for the intermediate representation.
 
-Regarding to functionality, it looks a little different with the file ```LCTL/language/COlumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
+Regarding to functionality, it looks a little different with the file ```LCTL/language/ColumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
 
 ```cpp
 template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
@@ -317,11 +317,12 @@ using compressedbase_t = typename processingStyle::base_t;
 
 ### The Calculation Templates <a name="TheCalculationTemplates"></a>
 
-Everything else of the language layer except the Collate concepts can be found in the folder ```LCTL/language/calculation/```. Here, literals like ```Token```, arithmetic operations, aggregations for parameter calculations and combining functions are defined. If possible, those templates are reused in the intermediate representation.
+Concept intern calculations like the determination of a common reference value for FOR, a common bitwidth for Bitpacking, the substraction of a reference value etc. are not implemented as template functions, but as  nested templates representing abstract syntax trees.
+Everything else of the language layer except the Collate concepts can be found in the folder ```LCTL/language/calculation/```. Here, literals like ```Token```, arithmetic operations, aggregations for parameter calculations and combining functions are defined. If possible, those templates are reused in the intermediate representation. (Maybe this decision has to be rethought due to clarity and the integration of the TVL).
 
 ### Algorithm Specification Static Bitpacking <a name="AlgorithmSpecificationStaticBitpacking"></a>
 
-The following algorithm specification results in a template Static Bitpacking, this means, that all input values of a given data type are stored with a given bitwidth and a given TVL processingStyle. All of the three parameters are templates. The format is defined for a variable number of blocks, such that each compressed block starts and ends at a word border due to ```compressedbase_t```. We also have an inner recursionimplementing the processing of single values of a whole block.
+The following algorithm specification results in a template Static Bitpacking, this means, that all input values of a given data type are stored with a given bitwidth and a given TVL processingStyle. All of the three parameters are templates. The format is defined for a variable number of blocks, such that each compressed block starts and ends at a word border due to ```compressedbase_t```. We also have an inner recursion implementing the processing of single values of a whole block.
 
 The parts of the nested templates can be distinguished into three domains:
 
@@ -399,9 +400,9 @@ and distinguishes by a name, the logical calculation rule, the rule to calculate
 
 We have a similar situation for tokenizers. At the moment, only static tokenizers ouputting a compile time known number of integral values are supported. Thus, we use a ```KnownTokenizerIR```. There also exists a template ```UnknownTokenizerIR```. For case distinctions, e.g. for Simple formats, the ```SwitchTokenizerIR``` might be usesful.
 
-#### Loop Recursions and Static Recursions <a name="LoopRecursionsandStaticRecursions"></a>
+#### Rolled and Unrolled Loops <a name="RolledandUnrolledLoops"></a>
 
-As already mentioned, to compress and to decompress a variable number of values, we always need at least one loop. Thus, the outer Recursion can never be unrolled and has to be a ```LoopRecursionIR```. In the example of the manual implementation of Bitpacking, we unrolled the inner loop for each 32 input values. Here a ```StaticRecursionIR``` should be used.
+As already mentioned, to compress and to decompress a variable number of values, we always need at least one loop. Thus, the outer Loop can never be unrolled and has to be a ```RolledLoopIR```. In the example of the manual implementation of Bitpacking, we unrolled the inner loop for each 32 input values. Here an ```UnrolledLoopIR``` should be used.
 
 ### Intermediate Calculation Templates <a name="IntermediateCalculationTemplates"></a>
 
@@ -416,6 +417,8 @@ The layer of generated code is not so heavily populated by different templated s
 </p>
 
 It writes the lower bits of the uncompressed input value leftshifted into the (output) memory region for the compressed data, increments the output pointer, writes the higher bits of the uncompressed input value rightshifted to the output, increments the input pointer and updates the current bitposition in the compressed output.
+
+## Transformation to the Intermedate Representation
 
 <!---
 
