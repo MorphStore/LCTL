@@ -511,7 +511,10 @@ ColumnFormatIR<
 The general transformation from the language to the intermediate layer is explained in the following section.
 
 ## Transformation from Model to Intermediate Representation <a name="TransformationfromModeltoIntermediateRepresentation"></a>
-In general, to transform a format model tree to its intermediate representation template specialization is used. This means, that a standard transformation rule is given for each tree node and several rules for [partial and full specializations](https://www.heise.de/developer/artikel/Einfuehrung-in-die-Template-Spezialisierung-6118187.html). For the transformation process an ```Analyzer``` struct is used. The general transformation rule defined in ```transformations/intermediate/Analyzer.h``` leads to a ```FAILURE<...>``` node, which might be used for reasons of debugging:
+In general, to transform a format model tree to its intermediate representation template specialization is used. This means, that a standard transformation rule is given for each tree node and several rules for [partial and full specializations](https://www.heise.de/developer/artikel/Einfuehrung-in-die-Template-Spezialisierung-6118187.html). 
+
+### The Starting Point: Transformation of the ColumnFormat
+For the transformation process an ```Analyzer``` struct is used. The general transformation rule defined in ```transformations/intermediate/Analyzer.h``` leads to a ```FAILURE<...>``` node, which might be used for reasons of debugging:
 ```cpp
 template <class collate_t>
   struct Analyzer{
@@ -564,7 +567,92 @@ template <class collate_t>
   };
 }
  ```
-In this sense, the transformation applies a grammar check of the format model. The intermediate representation can be accessed via the type alias transform of the ```Analyzer``` struct. The goal of the application of```typename InitializeAdaptiveParameters<...>::transform``` is the zero-initialization of adaptive paramters, which are updated in each loop pass and thus can not be declarated in each loop pass again.
+In this sense, the transformation applies a grammar check of the format model. The intermediate representation can be accessed via the type alias transform of the ```Analyzer``` struct. 
+
+### Initialization of adaptive Parameters
+
+The goal of the application of```typename InitializeAdaptiveParameters<...>::transform``` in the code above is the initialization of adaptive paramters of the current loop level by their start values, which are updated in each loop pass and thus can not be declarated in each loop pass again. This is done by an iteration over the parameter definitions of the parameter calculator. The next specialization shows the break condition for the initialization of adaptive parameters. 
+```cpp
+/* no next parameter */
+  template<
+    typename base_t,
+    int level, 
+    typename... combinerList_t,
+    typename... valueList_t,
+    typename outertokenizer_t,
+    typename runtimeparameternames_t,
+    typename loop_t
+  >
+  struct InitializeAdaptiveParameters<
+    ParameterCalculator<>,
+    base_t, 
+    level, 
+    loop_t, 
+    List<combinerList_t...>, 
+    List<valueList_t...>, 
+    outertokenizer_t,
+    runtimeparameternames_t
+  >{
+      using transform = typename LoopAnalyzer<
+          base_t, 
+          level, 
+          loop_t, 
+          List<combinerList_t...>, 
+          List<valueList_t...>, 
+          outertokenizer_t,
+          runtimeparameternames_t
+        >::transform;
+  };
+```
+When all parameters have been checked, the transformation turns to the loop.
+
+### The Distinction Between Different Kinds of Loops
+
+At the moment we have several specializations here. One specialization belongs to formats with a data dependent tokensizes (like Simple09 etc.). Here we need a loop with a step width initialized before the loop and updated inside the loop. This is not yet implemented.
+```
+/**
+   * (A) Loop with variable tokensize
+   */
+
+  template <
+    typename base_t, 
+    int level, 
+    typename tokenizer_t, 
+    typename parameterCalculator_t, 
+    typename loop_t, 
+    typename combiner_t, 
+    typename outertokenizer_t, 
+    typename ...combinerList_t,
+    typename ...valueList_t,
+    typename runtimeparameternames_t
+  >
+  struct LoopAnalyzer<
+    base_t, 
+    level,
+    /* Loop with its concepts */
+    Loop<
+      /* not specified as fix value */
+      tokenizer_t, 
+      parameterCalculator_t, 
+      loop_t, 
+      combiner_t
+    >, 
+    /* list of combiners outside the loop */    
+    List<combinerList_t...>, 
+    /* List of available parameters */
+    List<valueList_t...>, 
+    /* overall loop input size */
+    outertokenizer_t,
+    runtimeparameternames_t
+  >{
+      // TODO
+    using transform = RolledLoopIR<
+        UnknownTokenizerIR<tokenizer_t>, 
+        combiner_t
+      >;
+  };
+```
+A slightly other control flow concerns formats, where the tokenization of the block of fixed size is an optimization problem (AFOR2, AFOR2 VSEncoding etc.).
 
 ## The Generated Code Layer<a name="IntermediateCalculationTemplates"></a>
 
