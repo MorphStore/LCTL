@@ -411,6 +411,44 @@ In the current approach, most calculations have not to be somehow converted for 
 
 ### Intermediate Representation for Static Bitpacking
 To apply the example Bitpacking algorithm above, it must be fully specialized concerning the processingStyle, the bitwidth, and optionally the input datatype. A static Bitpacking algorithm for an ```uin32_t``` input datatype, a scalar processing of ```uin32_t``` and a bitwidth 3, is expressed by the template ```statbp <scalar<v32<uint32_t>>, 3, uint32_t >``` (or in short ```statbp <scalar<v32<uint32_t>>, 3 >```). The compile time generated intermediate representation is sketched below:
+```
+ColumnFormatIR<
+ RolledLoopIR< /* loop needed for the processing of an arbitrary multiple of 8 of data */
+  KnownTokenizerIR< /* step width for the loop is known: */
+   8ul, /* step with 8 values */
+   UnrolledLoopIR< /* inner loop can be unrolled */
+    8ul, /* unroll 8 passes */
+    KnownTokenizerIR< /* step width for the inner (unrolled) loop is known */
+     1ul, /* step width 1 (single values) */
+     EncoderIR< /* no further loop, but an encoder */
+      Token, /* no logical preprocessing */
+      Value< /* bit width is a fixed value */
+       unsigned long,
+       3ul /*bit width is 3 */
+      >,
+      Combiner< /* child node of an encoder is the corresponding combiner */
+       Token, /* inner combiner writes only encoder output, no additional parameters */
+       false /* don't start the writing process per code word at the next word border, but at the current bitposition */
+      > 
+     > 
+    >,
+    Combiner< /* inner (unrolled) loop knows its own and the outer combiner */
+     Token,
+     false
+    >,
+    Combiner<
+     Token,
+     true /* start the next data block at a new word border and at bitposition 0 */
+    > 
+   > 
+  >,
+  Combiner< /* outer (rolled) loop knows its own combiner */
+   Token,
+   true
+  > 
+ > 
+>
+```
 
 
 ## The Generated Code Layer<a name="IntermediateCalculationTemplates"></a>
