@@ -22,6 +22,8 @@
          - [Rolled and Unrolled Loops](#RolledandUnrolledLoops)
      - [Intermediate Calculation Templates](#IntermediateCalculationTemplates)
      - [Intermediate Representation for Static Bitpacking](#IntermediateRepresentationforStaticBitpacking)
+     - [Example: Intermediate Representation for Static Bitpacking](#ExampleIntermediateRepresentationforStaticBitpacking)
+ - [Transformation from Model to Intermediate Representation](#TransformationfromModeltoIntermediateRepresentation)
  - [The Generated Code Layer](#TheGeneratedCodeLayer) 
  
 
@@ -409,9 +411,10 @@ As already mentioned, to compress and to decompress a variable number of values,
 
 In the current approach, most calculations have not to be somehow converted for the intermediate representation. In example, all arithmetic operations like adding and subtracting values are used like in the language layer. One decision is to enrich aggregations with a compiletime known tokensize, such that a loop unrolling can be done. The code can be found in ```LCTL/intermediate/calculation/aggregation.h```.
 
-### Intermediate Representation for Static Bitpacking
-To apply the example Bitpacking algorithm above, it must be fully specialized concerning the processingStyle, the bitwidth, and optionally the input datatype. A static Bitpacking algorithm for an ```uin32_t``` input datatype, a scalar processing of ```uin32_t``` and a bitwidth 3, is expressed by the template ```statbp <scalar<v32<uint32_t>>, 3, uint32_t >``` (or in short ```statbp <scalar<v32<uint32_t>>, 3 >```). The compile time generated intermediate representation is sketched below:
-```
+### Example: Intermediate Representation for Static Bitpacking <a name="ExampleIntermediateRepresentationforStaticBitpacking"></a>
+To apply the example Bitpacking algorithm above, it must be fully specialized concerning the processingStyle, the bitwidth, and optionally the input datatype. A static Bitpacking algorithm for an ```uin32_t``` input datatype, a scalar processing of ```uin32_t``` and a bitwidth 3, is expressed by the template ```statbp <scalar<v32<uint32_t>>, 3, uint32_t >``` (or in short ```statbp <scalar<v32<uint32_t>>, 3 >```). The intermediate representation can be accessed via
+The compile time generated intermediate representation is shown below.
+```cpp
 ColumnFormatIR<
  RolledLoopIR< /* loop needed for the processing of an arbitrary multiple of 8 of data */
   KnownTokenizerIR< /* step width for the loop is known: */
@@ -449,7 +452,9 @@ ColumnFormatIR<
  > 
 >
 ```
+The transformation from the language to the intermediate layer is explained in the following section.
 
+## Transformation from Model to Intermediate Representation <a name="TransformationfromModeltoIntermediateRepresentation"></a>
 
 ## The Generated Code Layer<a name="IntermediateCalculationTemplates"></a>
 
