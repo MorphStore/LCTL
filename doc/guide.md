@@ -21,7 +21,6 @@
          - [Known and Unknwon Tokenizers](#KnownandUnknwonTokenizers)
          - [Rolled and Unrolled Loops](#RolledandUnrolledLoops)
      - [Intermediate Calculation Templates](#IntermediateCalculationTemplates)
-     - [Intermediate Representation for Static Bitpacking](#IntermediateRepresentationforStaticBitpacking)
      - [Example: Intermediate Representation for Static Bitpacking](#ExampleIntermediateRepresentationforStaticBitpacking)
  - [Transformation from Model to Intermediate Representation](#TransformationfromModeltoIntermediateRepresentation)
  - [The Generated Code Layer](#TheGeneratedCodeLayer) 
@@ -247,7 +246,7 @@ The metamodel is described in some scientific papers, i. e. in
 
 One of our main challenges is the definition of a metamodel for the class of lightweight data compression algorithms. This is the starting point and anchor of our approach, since all algorithms can be consistently described with this unifiedand specific model in a platform-independent manner. In [12], we have proposed an appropriate model called COLLATE and the development of this model in detail. In the remainder of this section, we briefly summarize its main aspects. The input  for COLLATE is a sequence of uncompressed (integer) valuesdue to the DSM storage format. The output is a sequence of compressed val-ues. Input and output data have a logical representation (semantic level) and aphysical representation (bit or encoding level). Through the analysis of the available algorithms, we have identified three important aspects. First, there are only six basic techniques which are used in the algorithms. These basic techniques are parameter-dependent and the parameter values are calculated within the algorithms. Second, a lot of algorithms subdivide the input data hierarchically in subsequences for which the parameters can be calculated. The following data processing of a subsequence depends on the subsequence itself. That means, data subdivision and parameter calculation are the adjustment points and the appli-cation of the basic techniques is straightforward. Third, for an exact algorithmdescription, the combination and arrangement of codewords and parameters haveto be defined. Here, the algorithms differ widely. Based on a systematic algorithm analysis, we defined our metamodel for this class of algorithms. The COLLATE metamodel consists of five main concepts — or building blocks — being required to transform a sequence of  uncompressed values to a sequence of compressed values:
 
- - Recursion: Each model includes a Recursion per se. This  concept is responsible for the hierarchical sequence subdivision and for applying the included concepts in the Recursion on each data subsequence.
+ - Loop: Each model includes a loop per se. This  concept is responsible for the hierarchical sequence subdivision and for applying the included concepts in the loop on each data subsequence.
  - Tokenizer: This concept is responsible for dividing an input sequence into finite subsequences of k values (or single values).
  - Parameter Calculator: The concept Parameter Calculator determines parameter values for finite subsequences or single values. The specification of the parameter values is done using parameter definitions.
  - Encoder: The third concept determines the encoded form for values to be com-pressed at bit level. Again, the concrete encoding is specified using functionsrepresenting the basic techniques.
@@ -329,34 +328,29 @@ The following algorithm specification results in a template Static Bitpacking, t
 
 The parts of the nested templates can be distinguished into three domains:
 
-1. Collate area: Each algorithm consists of a 4-tuple of the four Collate templates Tokenizer, ParameterCalculator, Encoder/Recursion, and Combiner - possibly nested. At the moment, a maximal nesting depth of 2 is possible.
+1. Collate area: Each algorithm consists of a 4-tuple of the four Collate templates Tokenizer, ParameterCalculator, Encoder/Loop, and Combiner - possibly nested. At the moment, a maximal nesting depth of 2 is possible.
 2. Calculation area: The collate concepts contain one or more functions, which are expressed as C++ templates, two. Here, LCTL provides mainly simple arithmetic expressions and aggregations.
 3. Processing area: In this area all information concerning data types, processing type definitions for SIMD programming is collected in specialized C++ templates and builds the bridge to the TVLLib. Each algorithm is knows its integral input datatype as well as a processing style (a vector extension/ register width and a component size, or scalar processing).
 
 In the following you see the implementation of an example algorithm for Static Bitpacking. At this point, please only have a look at the mapping from the templates to the different areas of responsibilities. (Sorry for highlighting it with the diff language.)
 
 ```diff
-  template <
-!   typename processingStyle_t, 
-+   size_t bitwidth_t, 
-!   typename inputDatatype_t = NIL
-  >
   using statbp = 
 - ColumnFormat <
-!   processingStyle_t,
--   Recursion <
--     StaticTokenizer< 
-+       sizeof(typename processingStyle_t::base_t) * 8
+!   scalar<v32<uint32_t>>,
+-   Loop <
+-     StaticTokenizer<
++       32
 -     >,
 -     ParameterCalculator<>,
--     Recursion<
+-     Loop <
 -       StaticTokenizer<
 +         1
 -       >,
 -       ParameterCalculator<>,
 -       Encoder<
 +         Token, 
-+         Size<bitwidth_t>
++         Size<12>
 -       >,
 -       Combiner<
 +         Token, 
@@ -368,14 +362,17 @@ In the following you see the implementation of an example algorithm for Static B
 !       LCTL_ALIGNED
 -     >
 -   >,
-!   inputDatatype_t
+!   uint32_t
 - >;
 ```
 
 All templates concerning Collate concepts are highlighted in red, calculations are highlighted in green, and processing information is highlighted in orange.
 The models specifies the compressed columnar format as follows.
 
-The columnar format with the type alias stabp can be parametrized with a processingStyle, a bitwidth, and optionally with an inputDatatype. The TVL processingStyle (e.g. sse2<v128<uint32_t>>) defines the register width respectively vector size (e.g. 128 Bit, vector datatype \_mm128i) which is used to operate on the uncompressed, compressed and decompressed data and the data type of the components inside the vector (e.g. 4 values of base datatype uint32_t). In the simplest case, we prefer a scalar processing (e.g. scala<v64<uint64_t>>), which means, that the memory area of the compressed values is iterated as an array of 64 Bit values. Only in the scalar case it is possible, that the memory areas for uncompressed and decompressed values have an other datatype, which might be additionally mentioned as inputDatatype. This concerns the number of incrementations an bitshifts during the data compresson and decompression. Depending on the base_t datatype of the compressed data, the first tokenizer defines blocks of values, such that after compressing the whole block with a random bitsize, a word border (corresponding to the base_t datatype of the compressed data) is hit. In the current example, we would used blocks of 64 values, because for each bitwidth, we need $ 64 \* bitwidth $ bits to encode the whole block, which hits a 64-bit word border. Each single value inside the block is encoded with a bitwidth given from outside as a template parameter. The inner Combiner concats all 64 null suppressed values. The ```LCTL_UNALIGNED``` parameter specifies, that all values are written one after each other without taking care of word borders. The outer combiner is responsible to concat all of those blocks. In contrast to that, the outer combiner starts each new block at a new 64 Bit word.
+The columnar format with the type alias stabp is characterized by a processingStyle, a algorithm model, and optionally by an input datatype. The TVL processingStyle defines if or how data are processed in a vectorized form. In the simplest case, we prefer a scalar processing (e.g. scala<v32<uint32_t>>), which means, that the memory area of the compressed values is iterated as an array of 64 Bit values. Only in the scalar case it is possible, that the memory areas for uncompressed and decompressed values have an other datatype, which might be additionally mentioned as thrid template parameter (i.e. here uint32_t, too). This concerns the number of incrementations an bitshifts during the data compresson and decompression. 
+
+TODO: BETTER EXPLAINATION
+In the current example, we have two loops. The outer loop contains a tokenizer with a step with of 32 values, because for each bitwidth, we need $ 32 \* bitwidth $ bits to encode the whole block, which hits a 32-bit word border. Each single value inside the block is encoded with the bitwidth 12. The inner Combiner concats all 64 null suppressed values. The ```LCTL_UNALIGNED``` parameter specifies, that all values are written one after each other without taking care of word borders. The outer combiner is responsible to concat all of those blocks. In contrast to that, the outer combiner starts each new block at a new 64 Bit word.
 
 ## The Intermediate Layer <a name="TheIntermediateLayer"></a>
 
