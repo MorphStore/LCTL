@@ -655,7 +655,7 @@ At the moment we have several specializations in the file ```transformations/int
 A slightly other control flow concerns formats, where the tokenization of the block of fixed size is an optimization problem (AFOR2, AFOR2 VSEncoding etc.). This is not yet implemented.
 
 At the moment the implementation exists for static tokenizers outputting a compile-time known and data-independent number of values. Here we make a distincation between the case, that (i) the overal number of input values is not known at compile time. This concerns the outer loop, where the number of input values is determined at run time, and the case, that (ii) the number of input values is known at compile time. This concerns the inner loop, if the outer tokenizer is a static one. In our example, we known, that the number of input values for the inner loop is always 32 and the tokensize defined by the inner tokenizer is 1. IN this case, the inner loop can be unrolled and executed in 32/1 = 32 passes. In the following we show the code  for case (i), where the Loop is mapped to a RolledLoopIR:
-```
+```cpp
   template <
       typename base_t, 
       int level, 
@@ -727,6 +727,9 @@ At the moment the implementation exists for static tokenizers outputting a compi
 ```
 EPLAINATION NEEDED
 Two specializations for the second case can be found in the same file.
+
+### Transformation of Parameter Calculation
+Forthe parameter calculation exists a case distincation, too.
 
 ## The Generated Code Layer<a name="IntermediateCalculationTemplates"></a>
 
