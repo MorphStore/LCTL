@@ -295,9 +295,65 @@ template<
   struct Loop{};
 ```
 
-which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, recursion/rncoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here. If possible, those templates are reused for the intermediate representation.
+which must be defined by four templates corresponding to the Collate concepts tokenizer, parameter calculator, loop/encoder, and combiner. Because these structs are only used as a specification language nothing else, especially no functionality is included here. If possible, those templates are reused for the intermediate representation.
+Inside the parameter calculator, parameterdefinitions are used. A parameter definition is characterized by a name, a preprocessing rule and in most cases by a rle to map the value to a bitwidth for the encoding of the value.
+```
+template <typename name_t, typename logicalCalculation_t, typename physicalCalculation_t>
+struct ParameterDefinition{
+  using name = name_t;
+  using logicalvalue = logicalCalculation_t;
+};
+```
+Those can be wrapped as adaptive Parameters, which menas, that their value depens on a state of the compression/decompression derived from the data history. Here it is necessary to define a start value. The recursionLevel is not used at the moment. It concerns the loop level, where the adaptive parameter is initialized respectivley reset to the start value. In future times this shall be used to avoid a two-pass processing for delta encoding and a subsequent bitpacking.
+```
+template <typename prameterDefinition_t, typename start_value_t, int level = -1>
+struct AdaptiveParameterDefinition{};
+```
+As mentioned above, an example for the usage of adaptive parameters is the delta encoding, where the predecessor of a value must be accessbile.
+```
+template <
+  typename processingStyle_t,
+  typename inputDatatype_t = NIL
+>
+using delta = 
+ColumnFormat <
+  processingStyle_t,
+  Loop<
+    StaticTokenizer<1>,
+    ParameterCalculator<
+      ParameterDefinition<
+        String<decltype("ref"_tstr)>,
+        String<decltype("p"_tstr)>, 
+        Value<size_t,0>
+      >,
+      AdaptiveParameterDefinition<
+        ParameterDefinition<
+          String<decltype("p"_tstr)>,
+          Token,
+          Value<size_t,0>
+        >,
+        Value<inputDatatype_t,0>,
+        0
+      >
+    >,
+    Encoder<
+      Minus<Token,String<decltype("ref"_tstr)>>, 
+      Size< sizeof(
+        typename std::conditional<
+          (1==1) == std::is_same<inputDatatype_t, NIL>::value,
+          typename processingStyle_t::base_t,
+          inputDatatype_t
+        >::type
+      ) * 8 >
+    >,
+    Combiner<Token, LCTL_ALIGNED>
+  >,
+  inputDatatype_t
+>; 
+```
+HERE AN EXPLANATION IS NEEDED.
 
-Regarding to functionality, it looks a little different with the file ```LCTL/language/ColumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
+Regarding to the unavailability of functionality of the language layer concepts, it looks a little different with the file ```LCTL/language/ColumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
 
 ```cpp
 template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
@@ -315,6 +371,10 @@ using base_t = typename std::conditional<
         inputbase_t
       >::type;
 using compressedbase_t = typename processingStyle::base_t;
+```
+The 'functionality' of the ColumnFormat, the intermediate representation of the format model, is contained in the type alias ```transform```, which we will discuss later on.
+```
+using transform = typename Analyzer < ColumnFormat <base_t, recursion_t, compressedbase_t >> ::transform;
 ```
 
 ### The Calculation Templates <a name="TheCalculationTemplates"></a>
@@ -371,7 +431,6 @@ The models specifies the compressed columnar format as follows.
 
 The columnar format with the type alias stabp is characterized by a processingStyle, a algorithm model, and optionally by an input datatype. The TVL processingStyle defines if or how data are processed in a vectorized form. In the simplest case, we prefer a scalar processing (e.g. scala<v32<uint32_t>>), which means, that the memory area of the compressed values is iterated as an array of 64 Bit values. Only in the scalar case it is possible, that the memory areas for uncompressed and decompressed values have an other datatype, which might be additionally mentioned as thrid template parameter (i.e. here uint32_t, too). This concerns the number of incrementations an bitshifts during the data compresson and decompression. 
 
-TODO: BETTER EXPLAINATION
 In the current example, we have two loops. The outer loop contains a tokenizer with a step with of 32 values, and thus processes 32 values at once. For the plain static bitpacking algorithms no parameters for a group of 32 values have to be calculated, that's why, the ParamezterCalculator is empty. Instead of an encoder, we use a further Loop, for a subdivision of into single values. Each single value inside the block is encoded with the bitwidth 12. The inner Combiner concats all 32 null suppressed values. The ```LCTL_UNALIGNED``` parameter specifies, that all values are written one after each other without taking care of word borders. The outer combiner is responsible to concat all of those blocks. In contrast to that, the outer combiner starts each new block at a new 32-Bit word.
 We use a two-level implementation, because at the moment each outer loop must start the writing process to the compressed output at a word border (i.e. at bitposition 0 in a 32-Bit word). Thus after Writing 32 values with bitwidth 12 or an other arbitrary bitwidth, we achieve a wordborder (i.e., because we need ![equation](http://www.sciweavers.org/tex2img.php?eq=32%20%5Ctimes%2012&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0) Bits for 32 values) and need no padding zeros. 
 
@@ -410,8 +469,7 @@ As already mentioned, to compress and to decompress a variable number of values,
 In the current approach, most calculations have not to be somehow converted for the intermediate representation. In example, all arithmetic operations like adding and subtracting values are used like in the language layer. One decision is to enrich aggregations with a compiletime known tokensize, such that a loop unrolling can be done. The code can be found in ```LCTL/intermediate/calculation/aggregation.h```.
 
 ### Example: Intermediate Representation for Static Bitpacking <a name="ExampleIntermediateRepresentationforStaticBitpacking"></a>
-To apply the example Bitpacking algorithm above, it must be fully specialized concerning the processingStyle, the bitwidth, and optionally the input datatype. A static Bitpacking algorithm for an ```uin32_t``` input datatype, a scalar processing of ```uin32_t``` and a bitwidth 3, is expressed by the template ```statbp <scalar<v32<uint32_t>>, 3, uint32_t >``` (or in short ```statbp <scalar<v32<uint32_t>>, 3 >```). The intermediate representation can be accessed via
-The compile time generated intermediate representation is shown below.
+The compile time generated intermediate representation of the example Bitpacking algorithm above can be accessed via ```statbp::transform``` and is shown below.
 ```cpp
 ColumnFormatIR<
  RolledLoopIR< /* loop needed for the processing of an arbitrary multiple of 8 of data */
@@ -450,9 +508,63 @@ ColumnFormatIR<
  > 
 >
 ```
-The transformation from the language to the intermediate layer is explained in the following section.
+The general transformation from the language to the intermediate layer is explained in the following section.
 
 ## Transformation from Model to Intermediate Representation <a name="TransformationfromModeltoIntermediateRepresentation"></a>
+In general, to transform a format model tree to its intermediate representation template specialization is used. This means, that a standard transformation rule is given for each tree node and several rules for [partial and full specializations](https://www.heise.de/developer/artikel/Einfuehrung-in-die-Template-Spezialisierung-6118187.html). For the transformation process an ```Analyzer``` struct is used. The general transformation rule defined in ```transformations/intermediate/Analyzer.h``` leads to a ```FAILURE<...>``` node, which might be used for reasons of debugging:
+```cpp
+template <class collate_t>
+  struct Analyzer{
+    public:
+    using transform = FAILURE_ID<100>;
+  };
+```
+ The one and only specialization for the case, that the childnode is a ```ColumnFormat``` with a base_t datatype of the input column, a loop with a tokenizer, parameter calculator, a loop or encoder, a combiner and a datatype for the compressed values, can be found in the same file.
+ ```
+ template <
+    typename base_t, 
+    class tokenizer_t, 
+    class... pads, 
+    class loop_t, 
+    class combiner_t, 
+    typename baseout_t
+  >
+  struct Analyzer<
+    ColumnFormat<
+      base_t, 
+      Loop<
+        tokenizer_t, 
+        ParameterCalculator<pads...>,  
+        loop_t, 
+        combiner_t
+      >, 
+      baseout_t
+    >
+  >{
+      using transform = ColumnFormatIR<
+        typename InitializeAdaptiveParameters<
+          ParameterCalculator<pads...>,
+          /* input datatype */
+          base_t,
+          /* loop level */
+          (size_t) 0,
+          /* loop */
+          Loop<tokenizer_t, ParameterCalculator<pads...>, loop_t, combiner_t>, 
+          /* list of known values (tuples of name string, loop level, logical value as Int<...> and number of bits)
+             and unknown values (tuples of name string, loop level, logical value as term and number of bits) */
+          List<>,
+          /* list of combiners, outer combiners first (inner combiners are pushed back) */
+          List<>,
+          /* overall inputsize */
+          String<decltype("length"_tstr)>,
+          /* input length is the first runtme parameter */
+          List<String<decltype("length"_tstr)>>
+        >::transform
+      >;
+  };
+}
+ ```
+In this sense, the transformation applies a grammar check of the format model. The intermediate representation can be accessed via the type alias transform of the ```Analyzer``` struct. The goal of the application of```typename InitializeAdaptiveParameters<...>::transform``` is the zero-initialization of adaptive paramters, which are updated in each loop pass and thus can not be declarated in each loop pass again.
 
 ## The Generated Code Layer<a name="IntermediateCalculationTemplates"></a>
 
