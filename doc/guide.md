@@ -523,7 +523,7 @@ template <class collate_t>
   };
 ```
  The one and only specialization for the case, that the childnode is a ```ColumnFormat``` with a base_t datatype of the input column, a loop with a tokenizer, parameter calculator, a loop or encoder, a combiner and a datatype for the compressed values, can be found in the same file.
- ```
+ ```cpp
  template <
     typename base_t, 
     class tokenizer_t, 
@@ -576,7 +576,7 @@ The goal of the application of```typename InitializeAdaptiveParameters<...>::tra
 /* no next parameter */
   template<
     typename base_t,
-    int level, 
+    int level_t, 
     typename... combinerList_t,
     typename... valueList_t,
     typename outertokenizer_t,
@@ -595,7 +595,7 @@ The goal of the application of```typename InitializeAdaptiveParameters<...>::tra
   >{
       using transform = typename LoopAnalyzer<
           base_t, 
-          level, 
+          level_t, 
           loop_t, 
           List<combinerList_t...>, 
           List<valueList_t...>, 
@@ -608,15 +608,15 @@ When all parameters have been checked, the transformation turns to the loop.
 
 ### The Distinction Between Different Kinds of Loops
 
-At the moment we have several specializations here. One specialization belongs to formats with a data dependent tokensizes (like Simple09 etc.). Here we need a loop with a step width initialized before the loop and updated inside the loop. This is not yet implemented.
-```
+At the moment we have several specializations in the file ```transformations/intermediate/LoopAnalyzer.h```. One specialization belongs to formats with a data dependent tokensizes (like Simple09 etc.). Here we need a loop with a step width initialized before the loop and updated inside the loop. This is not yet implemented.
+```cpp
 /**
    * (A) Loop with variable tokensize
    */
 
   template <
     typename base_t, 
-    int level, 
+    int level_t, 
     typename tokenizer_t, 
     typename parameterCalculator_t, 
     typename loop_t, 
@@ -628,7 +628,7 @@ At the moment we have several specializations here. One specialization belongs t
   >
   struct LoopAnalyzer<
     base_t, 
-    level,
+    level_t,
     /* Loop with its concepts */
     Loop<
       /* not specified as fix value */
@@ -652,7 +652,81 @@ At the moment we have several specializations here. One specialization belongs t
       >;
   };
 ```
-A slightly other control flow concerns formats, where the tokenization of the block of fixed size is an optimization problem (AFOR2, AFOR2 VSEncoding etc.).
+A slightly other control flow concerns formats, where the tokenization of the block of fixed size is an optimization problem (AFOR2, AFOR2 VSEncoding etc.). This is not yet implemented.
+
+At the moment the implementation exists for static tokenizers outputting a compile-time known and data-independent number of values. Here we make a distincation between the case, that (i) the overal number of input values is not known at compile time. This concerns the outer loop, where the number of input values is determined at run time, and the case, that (ii) the number of input values is known at compile time. This concerns the inner loop, if the outer tokenizer is a static one. In our example, we known, that the number of input values for the inner loop is always 32 and the tokensize defined by the inner tokenizer is 1. IN this case, the inner loop can be unrolled and executed in 32/1 = 32 passes. In the following we show the code  for case (i), where the Loop is mapped to a RolledLoopIR:
+```
+  template <
+      typename base_t, 
+      int level, 
+      size_t n, 
+      typename... pads_t,
+      typename loop_t, 
+      typename combiner_t, 
+      typename outertokenizer_t, 
+      typename ...combinerList_t, 
+      typename ...valueList_t,
+      typename runtimeparameternames_t
+  >
+  struct LoopAnalyzer<
+      base_t, 
+      level, 
+      Loop<
+          /* Fix tokensize */
+          Value<size_t, n>, 
+          ParameterCalculator<
+              //firstpad_t, 
+              pads_t...
+          >, 
+          loop_t, 
+          combiner_t>,
+      List<combinerList_t...>, 
+      List<valueList_t...>, 
+      outertokenizer_t,
+      runtimeparameternames_t
+  >{
+    using transform = RolledLoopIR<
+              /* tokensize in the RolledLoop is fix/known at compile-time*/
+              KnownTokenizerIR<
+                  n,
+                  /* next parameter/loop/encoder is transformed */
+                  typename ParameterAnalyzer<
+                      base_t, 
+                      level, 
+                      ParameterCalculator<
+                          //firstpad_t, 
+                          pads_t...
+                      >, 
+                      loop_t, 
+                      List<
+                          combiner_t,
+                          combinerList_t...
+                      >, 
+                      List<
+                          /* tokensize is added to known value list */
+                          std::tuple<
+                              /* parameter name */
+                              String<decltype("tokensize"_tstr)>,
+                              /* loop level of parameter calculation */
+                              Value<size_t, level>, 
+                              /* calculated value if known, else 0 */
+                              Value<size_t, n>, 
+                              /* bit width */
+                              NIL
+                          >,
+                          valueList_t...
+                      >,
+                      /* tokensize */
+                      Value<size_t, n>,
+                      runtimeparameternames_t
+                  >::transform
+              >,
+              combiner_t
+      >;
+  };
+```
+EPLAINATION NEEDED
+Two specializations for the second case can be found in the same file.
 
 ## The Generated Code Layer<a name="IntermediateCalculationTemplates"></a>
 
