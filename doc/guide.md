@@ -410,7 +410,7 @@ The columnar format with the type alias stabp is characterized by a processingSt
 In the current example, we have two loops. The outer loop contains a tokenizer with a step with of 32 values, and thus processes 32 values at once. For the plain static bitpacking algorithms no parameters for a group of 32 values have to be calculated, that's why, the ParamezterCalculator is empty. Instead of an encoder, we use a further Loop, for a subdivision of into single values. Each single value inside the block is encoded with the bitwidth 12. The inner Combiner concats all 32 null suppressed values. The ```LCTL_UNALIGNED``` parameter specifies, that all values are written one after each other without taking care of word borders. The outer combiner is responsible to concat all of those blocks. In contrast to that, the outer combiner starts each new block at a new 32-Bit word.
 We use a two-level implementation, because at the moment each outer loop must start the writing process to the compressed output at a word border (i.e. at bitposition 0 in a 32-Bit word). Thus after Writing 32 values with bitwidth 12 or an other arbitrary bitwidth, we achieve a word border (i.e., because we need ![equation](http://www.sciweavers.org/tex2img.php?eq=32%20%5Ctimes%2012&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0) Bits for 32 values) and need no padding zeros. 
 
-### The Bridge to the INtermediate Layer
+### The Bridge to the Intermediate Layer
 
 Regarding to the unavailability of functionality of the language layer concepts, it looks a little different with the file ```LCTL/language/ColumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
 
@@ -472,20 +472,21 @@ In the current approach, most calculations have not to be somehow converted for 
 
 ### Example: Intermediate Representation for Static Bitpacking <a name="ExampleIntermediateRepresentationforStaticBitpacking"></a>
 The compile time generated intermediate representation of the example Bitpacking algorithm above can be accessed via ```statbp::transform``` and is shown below.
+
 ```cpp
 ColumnFormatIR<
- RolledLoopIR< /* loop needed for the processing of an arbitrary multiple of 8 of data */
+ RolledLoopIR< /* loop needed for the processing of an arbitrary multiple of 32 of data */
   KnownTokenizerIR< /* step width for the loop is known: */
-   8ul, /* step with 8 values */
+   32ul, /* step with 32 values */
    UnrolledLoopIR< /* inner loop can be unrolled */
-    8ul, /* unroll 8 passes */
+    32ul, /* unroll 32 passes */
     KnownTokenizerIR< /* step width for the inner (unrolled) loop is known */
      1ul, /* step width 1 (single values) */
      EncoderIR< /* no further loop, but an encoder */
       Token, /* no logical preprocessing */
       Value< /* bit width is a fixed value */
        unsigned long,
-       3ul /*bit width is 3 */
+       12ul /*bit width is 12 */
       >,
       Combiner< /* child node of an encoder is the corresponding combiner */
        Token, /* inner combiner writes only encoder output, no additional parameters */
@@ -510,6 +511,7 @@ ColumnFormatIR<
  > 
 >
 ```
+
 The general transformation from the language to the intermediate layer is explained in the following section.
 
 
@@ -518,6 +520,7 @@ In general, to transform a format model tree to its intermediate representation 
 
 ### The Starting Point: Transformation of the ColumnFormat
 For the transformation process an ```Analyzer``` struct is used. The general transformation rule defined in ```transformations/intermediate/Analyzer.h``` leads to a ```FAILURE<...>``` node, which might be used for reasons of debugging:
+
 ```cpp
 template <class collate_t>
   struct Analyzer{
@@ -525,7 +528,9 @@ template <class collate_t>
     using transform = FAILURE_ID<100>;
   };
 ```
- The one and only specialization for the case, that the childnode is a ```ColumnFormat``` with a base_t datatype of the input column, a loop with a tokenizer, parameter calculator, a loop or encoder, a combiner and a datatype for the compressed values, can be found in the same file.
+
+The one and only specialization for the case, that the child node is a ```ColumnFormat``` with a ```base_t``` datatype of the input column, a loop with a tokenizer, parameter calculator, a loop or encoder, a combiner and a datatype ```compressedbase_t``` for the compressed values, can be found in the same file.
+
  ```cpp
  template <
     typename base_t, 
@@ -533,7 +538,7 @@ template <class collate_t>
     class... pads, 
     class loop_t, 
     class combiner_t, 
-    typename baseout_t
+    typename compressedbase_t
   >
   struct Analyzer<
     ColumnFormat<
@@ -544,7 +549,7 @@ template <class collate_t>
         loop_t, 
         combiner_t
       >, 
-      baseout_t
+      compressedbase_t
     >
   >{
       using transform = ColumnFormatIR<
@@ -556,10 +561,10 @@ template <class collate_t>
           (size_t) 0,
           /* loop */
           Loop<tokenizer_t, ParameterCalculator<pads...>, loop_t, combiner_t>, 
+          /* list of combiners, inner combiners first */
+          List<>,
           /* list of known values (tuples of name string, loop level, logical value as Int<...> and number of bits)
              and unknown values (tuples of name string, loop level, logical value as term and number of bits) */
-          List<>,
-          /* list of combiners, outer combiners first (inner combiners are pushed back) */
           List<>,
           /* overall inputsize */
           String<decltype("length"_tstr)>,
@@ -570,11 +575,13 @@ template <class collate_t>
   };
 }
  ```
-In this sense, the transformation applies a grammar check of the format model. The intermediate representation can be accessed via the type alias transform of the ```Analyzer``` struct. 
+ 
+In this sense, the transformation applies a tree grammar check of the format model. The intermediate representation can be accessed via the type alias ```transform``` of the ```Analyzer``` struct. 
 
-### Initialization of adaptive Parameters
+### Initialization of Adaptive Parameters
 
 The goal of the application of```typename InitializeAdaptiveParameters<...>::transform``` in the code above is the initialization of adaptive paramters of the current loop level by their start values, which are updated in each loop pass and thus can not be declarated in each loop pass again. This is done by a recursion over the parameter definitions of the parameter calculator. Here an ```UnknownValueIR``` child node is appended at the current position in the intermedate representation tree:
+
 ```cpp
 /* next parameter is adaptive */
   template<
@@ -621,10 +628,11 @@ The goal of the application of```typename InitializeAdaptiveParameters<...>::tra
       >;
   };
   ```
+Further there exists a specialization for non-adaptive parameter definitions and one with a base case. 
+The next specialization shows the base case for the initialization of adaptive parameters. When all parameters of the current loop level have been checked for adaptivity, the transformation turns to the loop.
 
-The next specialization shows the break condition for the initialization of adaptive parameters. When all parameters of the current loop level have been checked for adaptivity, the transformation turns to the loop.
 ```cpp
-/* no next parameter */
+  /* no next parameter */
   template<
     typename base_t,
     int level_t, 
@@ -687,7 +695,7 @@ At the moment we have several specializations in the file ```transformations/int
     outertokenizer_t,
     runtimeparameternames_t
   >{
-      // TODO
+    // TODO
     using transform = RolledLoopIR<
         UnknownTokenizerIR<tokenizer_t>, 
         combiner_t
@@ -697,6 +705,7 @@ At the moment we have several specializations in the file ```transformations/int
 A slightly other control flow concerns formats, where the tokenization of the block of fixed size is an optimization problem (AFOR2, AFOR2 VSEncoding etc.). This is not yet implemented.
 
 At the moment the implementation exists for static tokenizers outputting a compile-time known and data-independent number of values. Here we make a distincation between the case, that (i) the overal number of input values is not known at compile time. This concerns the outer loop, where the number of input values is determined at run time, and the case, that (ii) the number of input values is known at compile time. This concerns the inner loop, if the outer tokenizer is a static one. In our example, we known, that the number of input values for the inner loop is always 32 and the tokensize defined by the inner tokenizer is 1. IN this case, the inner loop can be unrolled and executed in 32/1 = 32 passes. In the following we show the code for case (i), where the Loop is mapped to a RolledLoopIR. Its child node is a KnownTokenizer containing the tokensize n. The further child node has to be calculated by the ParameterAnalyzer, which gets as input parameters the rest of the currently untransformed tree and further information like a list of combiners, a list of compile time known values, and a list of only the names of the run time known values.
+
 ```cpp
 template <
     typename base_t, 
