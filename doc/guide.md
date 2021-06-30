@@ -353,30 +353,6 @@ ColumnFormat <
 ```
 HERE AN EXPLANATION IS NEEDED.
 
-Regarding to the unavailability of functionality of the language layer concepts, it looks a little different with the file ```LCTL/language/ColumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
-
-```cpp
-template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
-  struct ColumnFormat {
-  ...
-  }
-```
-
-You can see, that each algorithm needs a processingStyle, a recursion and and optionally an integral datatype for the input array. The latter is only useful in the case of scalar processing. Otherwise the integral datatype for the input array is extracted from processing style and referenced by ```base_t```, whereas the possible distinct datatype used to iterate the memory region of compressed data is referenced by ```compressedbase_t```, which is implemented in the following lines:
-
-```cpp
-using base_t = typename std::conditional< 
-        true == std::is_same<inputbase_t,NIL>::value, 
-        typename processingStyle::base_t, 
-        inputbase_t
-      >::type;
-using compressedbase_t = typename processingStyle::base_t;
-```
-The 'functionality' of the ColumnFormat, the intermediate representation of the format model, is contained in the type alias ```transform```, which we will discuss later on.
-```
-using transform = typename Analyzer < ColumnFormat <base_t, recursion_t, compressedbase_t >> ::transform;
-```
-
 ### The Calculation Templates <a name="TheCalculationTemplates"></a>
 
 Concept intern calculations like the determination of a common reference value for FOR, a common bitwidth for Bitpacking, the substraction of a reference value etc. are not implemented as template functions, but as  nested templates representing abstract syntax trees.
@@ -432,7 +408,33 @@ The models specifies the compressed columnar format as follows.
 The columnar format with the type alias stabp is characterized by a processingStyle, a algorithm model, and optionally by an input datatype. The TVL processingStyle defines if or how data are processed in a vectorized form. In the simplest case, we prefer a scalar processing (e.g. scala<v32<uint32_t>>), which means, that the memory area of the compressed values is iterated as an array of 64 Bit values. Only in the scalar case it is possible, that the memory areas for uncompressed and decompressed values have an other datatype, which might be additionally mentioned as thrid template parameter (i.e. here uint32_t, too). This concerns the number of incrementations an bitshifts during the data compresson and decompression. 
 
 In the current example, we have two loops. The outer loop contains a tokenizer with a step with of 32 values, and thus processes 32 values at once. For the plain static bitpacking algorithms no parameters for a group of 32 values have to be calculated, that's why, the ParamezterCalculator is empty. Instead of an encoder, we use a further Loop, for a subdivision of into single values. Each single value inside the block is encoded with the bitwidth 12. The inner Combiner concats all 32 null suppressed values. The ```LCTL_UNALIGNED``` parameter specifies, that all values are written one after each other without taking care of word borders. The outer combiner is responsible to concat all of those blocks. In contrast to that, the outer combiner starts each new block at a new 32-Bit word.
-We use a two-level implementation, because at the moment each outer loop must start the writing process to the compressed output at a word border (i.e. at bitposition 0 in a 32-Bit word). Thus after Writing 32 values with bitwidth 12 or an other arbitrary bitwidth, we achieve a wordborder (i.e., because we need ![equation](http://www.sciweavers.org/tex2img.php?eq=32%20%5Ctimes%2012&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0) Bits for 32 values) and need no padding zeros. 
+We use a two-level implementation, because at the moment each outer loop must start the writing process to the compressed output at a word border (i.e. at bitposition 0 in a 32-Bit word). Thus after Writing 32 values with bitwidth 12 or an other arbitrary bitwidth, we achieve a word border (i.e., because we need ![equation](http://www.sciweavers.org/tex2img.php?eq=32%20%5Ctimes%2012&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0) Bits for 32 values) and need no padding zeros. 
+
+### The Bridge to the INtermediate Layer
+
+Regarding to the unavailability of functionality of the language layer concepts, it looks a little different with the file ```LCTL/language/ColumnFormat.h``` containing only a wrapper struct named ```ColumnFormat```. It starts with the following lines:
+
+```cpp
+template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
+  struct ColumnFormat {
+  ...
+  }
+```
+
+You can see, that each algorithm needs a processingStyle, a recursion and and optionally an integral datatype for the input array. The latter is only useful in the case of scalar processing. Otherwise the integral datatype for the input array is extracted from processing style and referenced by ```base_t```, whereas the possible distinct datatype used to iterate the memory region of compressed data is referenced by ```compressedbase_t```, which is implemented in the following lines:
+
+```cpp
+using base_t = typename std::conditional< 
+        true == std::is_same<inputbase_t,NIL>::value, 
+        typename processingStyle::base_t, 
+        inputbase_t
+      >::type;
+using compressedbase_t = typename processingStyle::base_t;
+```
+The 'functionality' of the ColumnFormat, the intermediate representation of the format model, is contained in the type alias ```transform```, which we will discuss in the next section.
+```
+using transform = typename Analyzer < ColumnFormat <base_t, recursion_t, compressedbase_t >> ::transform;
+```
 
 ## The Intermediate Layer <a name="TheIntermediateLayer"></a>
 
@@ -509,6 +511,7 @@ ColumnFormatIR<
 >
 ```
 The general transformation from the language to the intermediate layer is explained in the following section.
+
 
 ## Transformation from Model to Intermediate Representation <a name="TransformationfromModeltoIntermediateRepresentation"></a>
 In general, to transform a format model tree to its intermediate representation template specialization is used. This means, that a standard transformation rule is given for each tree node and several rules for [partial and full specializations](https://www.heise.de/developer/artikel/Einfuehrung-in-die-Template-Spezialisierung-6118187.html). 
@@ -675,7 +678,6 @@ At the moment the implementation exists for static tokenizers outputting a compi
           /* Fix tokensize */
           Value<size_t, n>, 
           ParameterCalculator<
-              //firstpad_t, 
               pads_t...
           >, 
           loop_t, 
