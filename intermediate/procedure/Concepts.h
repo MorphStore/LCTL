@@ -135,7 +135,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template<typename node_t>  
-  struct FormatIR{};
+  struct ColumnFormatIR{};
 
   /* In the following: New Node Types for the Analyze layer*/
   

@@ -16,8 +16,8 @@
 //#include "../lib/combiner.h"
 //#include "./functions.h"
 //#include "./Term.h"
-#include "./LoopAnalyzer.h"
 //#include <tuple>
+#include "./LoopAnalyzer.h"
 #include <header/vector_extension_structs.h>
 #include <header/vector_primitives.h>
 
@@ -25,6 +25,161 @@ template<typename... Ts>
 struct List;
 
 namespace LCTL {
+  
+  /* forward declaration */
+    template <
+    typename base_t, 
+    int level, 
+    typename loop_t, 
+    typename combinerList_t, 
+    typename valueList_t,
+    typename tokenizer_t,
+    typename runtimeparameternames_t
+  >
+  struct LoopAnalyzer;
+    
+  template<
+    typename parameterCalculator_t, 
+    typename base_t, 
+    int level, 
+    typename loop_t,
+    typename combinerlist_t,
+    typename valuelist_t,
+    typename outertokenizer_t,
+    typename runtimeparameters_t
+  > 
+  struct InitializeAdaptiveParameters{
+      using transform = FAILURE_ID<12345>;
+  };
+
+  /* next parameter is not adaptive */
+  template<
+    typename padfirst_t,
+    typename... pads,
+    typename base_t,
+    int level, 
+    typename... combinerList_t,
+    typename... valueList_t,
+    typename outertokenizer_t,
+    typename runtimeparameternames_t,
+    typename loop_t
+  >
+  struct InitializeAdaptiveParameters<
+    ParameterCalculator<padfirst_t, pads...>,
+    base_t, 
+    level, 
+    loop_t, 
+    List<combinerList_t...>, 
+    List<valueList_t...>, 
+    outertokenizer_t,
+    runtimeparameternames_t
+  >{
+      using transform = typename InitializeAdaptiveParameters<
+        ParameterCalculator<pads...>,
+        base_t, 
+        level, 
+        loop_t,
+        List<combinerList_t...>, 
+        List<valueList_t...>, 
+        outertokenizer_t,
+        runtimeparameternames_t
+      >::transform;
+  };
+  /* next parameter is adaptive */
+  template<
+    typename base_t,
+    int level, 
+    typename... pads,
+    typename... combinerList_t,
+    typename... valueList_t,
+    typename outertokenizer_t,
+    typename... runtimeparameternames_t,
+    typename name_t,
+    typename logicalvalue_t,
+    typename numberOfBits_t,
+    typename startvalue_t,
+    int levelOfInitializing,
+    typename loop_t
+  >
+  struct InitializeAdaptiveParameters<
+    ParameterCalculator<
+      AdaptiveParameterDefinition<
+        ParameterDefinition<
+          name_t,
+          logicalvalue_t,
+          numberOfBits_t
+        >, 
+        startvalue_t, 
+        levelOfInitializing
+      >, 
+      pads...
+    >,
+    base_t, 
+    level, 
+    loop_t, 
+    List<combinerList_t...>, 
+    List<valueList_t...>, 
+    outertokenizer_t,
+    List<runtimeparameternames_t...>
+  >{
+      using transform = UnknownValueIR<
+        name_t,
+        startvalue_t,
+        numberOfBits_t,
+        typename InitializeAdaptiveParameters<
+          ParameterCalculator<pads...>,
+          base_t, 
+          level, 
+          loop_t, 
+          List<combinerList_t...>, 
+          List<
+            std::tuple<
+              name_t, 
+              Value<size_t, level>, 
+              name_t,//NIL, // not the start value, because this leads to a replacement in calculations with the start value
+              numberOfBits_t
+            >,
+            valueList_t...
+          >, 
+          outertokenizer_t,
+          List< 
+              name_t,
+              runtimeparameternames_t...
+          >
+        >::transform
+      >;
+  };
+
+  /* no next parameter */
+  template<
+    typename base_t,
+    int level, 
+    typename... combinerList_t,
+    typename... valueList_t,
+    typename outertokenizer_t,
+    typename runtimeparameternames_t,
+    typename loop_t
+  >
+  struct InitializeAdaptiveParameters<
+    ParameterCalculator<>,
+    base_t, 
+    level, 
+    loop_t, 
+    List<combinerList_t...>, 
+    List<valueList_t...>, 
+    outertokenizer_t,
+    runtimeparameternames_t
+  >{
+      using transform = typename LoopAnalyzer<
+          base_t, 
+          level, 
+          loop_t, 
+          List<combinerList_t...>, 
+          List<valueList_t...>, 
+          outertokenizer_t,
+          runtimeparameternames_t
+        >::transform;
+  };
     
   /**
    * @brief creates the intermediate tree. 
@@ -150,7 +305,7 @@ namespace LCTL {
       baseout_t
     >
   >{
-      using transform = FormatIR<
+      using transform = ColumnFormatIR<
         typename InitializeAdaptiveParameters<
           ParameterCalculator<pads...>,
           /* input datatype */

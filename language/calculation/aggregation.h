@@ -107,13 +107,15 @@ namespace LCTL {
       typename parameternamesmax_t,
       typename parameternames_t
   >
-  struct Bitwidth<MaxIR<
-    Token, 
-    Value<size_t, tokensize_t>, 
-    base_t, 
-    parameternamesmax_t>, 
-    parameternames_t
-  > {
+  struct Bitwidth<
+    MaxIR<
+      Token, 
+      Value<size_t, tokensize_t>, 
+      base_t, 
+      parameternamesmax_t
+    >, 
+    parameternames_t> {
+    
       template<typename... parameters_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
         const base_t * & inBase, 

@@ -13,6 +13,7 @@
 #include "../../language/collate/Concepts.h"
 #include "../../language/calculation/Concat.h"
 #include "../../language/calculation/aggregation.h"
+#include "../../language/calculation/arithmetics.h"
 #include "../../language/calculation/literals.h"
 #include <type_traits>
 

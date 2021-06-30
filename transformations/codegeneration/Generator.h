@@ -71,7 +71,7 @@ namespace LCTL {
   >
   struct Generator<
     processingStyle_t, 
-    FormatIR<loop_t>, 
+    ColumnFormatIR<loop_t>, 
     base_t, 
     tokensize_t,
     /* bitposition at the beginning of en- and decoding */

@@ -20,11 +20,11 @@ using namespace LCTL;
  * 
  * Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
-#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 8 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <=16 && BITWIDTH >= 1 && BITWIDTH <= 16)
+#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <=8 && BITWIDTH >= 3 && BITWIDTH <= 3)
 /* 
  * Dynamic Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and maximal bitwidth for datagenerator BITWIDTH
  */
-#define CRITERION_DYNBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE == 8 && BITWIDTH >= 1 && BITWIDTH <= 1)
+#define CRITERION_DYNBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 8 && COMPRESSEDBASE == 8 && BITWIDTH >= 3 && BITWIDTH <= 3)
 /* 
  * Static FOR with Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
