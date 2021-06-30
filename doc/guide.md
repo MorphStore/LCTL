@@ -186,7 +186,7 @@ size_t decompress(
 </tr>
 </table>
 
-To write the data at the correct bitposition to the output, bit shifts and bitwise or operations are used. Span values are subdivided into a lower part, filling the rest if the larger output bits and a higher part filling the begin of the next output word. You can see the symmetry between compression and decompression: outCpy and inCpy are swapped as well as "<<" and ">>". For decompression we need additionally the bit mask 000000000 00000000 00001111 11111111 (hexadecimal 0xFFF), which it used to extract only the 12 bits belonging to the current value.
+To write the data at the correct bitposition to the output, bit shifts and bitwise or operations are used. Span values are subdivided into a lower part, filling the rest if the larger output bits and a higher part filling the begin of the next output word. You can see the symmetry between compression and decompression: ```in``` and ```out``` are swapped as well as ```<<``` and ```>>```. For decompression we need additionally the bit mask ```000000000 00000000 00001111 11111111``` (hexadecimal ```0xFFF```), which it used to extract only the 12 bits belonging to the current value.
 
 A slightly different implementation avoids the separation of the parts of the span value an is marginally faster by using pointer casts to a larger integer datatype instead. 
 
