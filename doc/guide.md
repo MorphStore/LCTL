@@ -658,10 +658,10 @@ The next specialization shows the base case for the initialization of adaptive p
 
 ### The Distinction Between Different Kinds of Loops
 
-At the moment we have several specializations in the file ```transformations/intermediate/LoopAnalyzer.h```. One specialization belongs to formats with a data dependent tokensizes (like Simple09 etc.). Here we need a loop with a step width initialized before the loop and updated inside the loop. This is not yet implemented.
+At the moment we have several specializations in the file ```transformations/intermediate/LoopAnalyzer.h```. One specialization belongs to formats with a data dependent tokensize (like Simple9 etc.). Here we need a loop with a step width initialized before the loop and updated inside the loop to be generated. This is not yet implemented.
 ```cpp
   /**
-   * (A) Loop with variable tokensize
+   * Loop with variable tokensize
    */
 
   template <
@@ -702,7 +702,7 @@ At the moment we have several specializations in the file ```transformations/int
       >;
   };
 ```
-A slightly other control flow concerns formats, where the tokenization of the block of fixed size is an optimization problem (AFOR2, AFOR2 VSEncoding etc.). This is not yet implemented.
+A slightly other control flow concerns formats, where the tokenization of the block of fixed size is an optimization problem (AFOR2, AFOR3, VSEncoding etc.). This is not yet implemented.
 
 At the moment the implementation exists for static tokenizers outputting a compile-time known and data-independent number of values. Here we make a distincation between the case, that (i) the overal number of input values is not known at compile time. This concerns the outer loop, where the number of input values is determined at run time, and the case, that (ii) the number of input values is known at compile time. This concerns the inner loop, if the outer tokenizer is a static one. In our example, we known, that the number of input values for the inner loop is always 32 and the tokensize defined by the inner tokenizer is 1. IN this case, the inner loop can be unrolled and executed in 32/1 = 32 passes. In the following we show the code for case (i), where the Loop is mapped to a RolledLoopIR. Its child node is a KnownTokenizer containing the tokensize n. The further child node has to be calculated by the ParameterAnalyzer, which gets as input parameters the rest of the currently untransformed tree and further information like a list of combiners, a list of compile time known values, and a list of only the names of the run time known values.
 
