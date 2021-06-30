@@ -136,7 +136,7 @@ size_t compress(
   in++;
   *out |= in << 20; /* value 8 */
   in; out++;
-  // repeat 3 additional times 
+  // repeat additionally 3 times 
   ...
  }
  return out - outstart;
@@ -175,7 +175,7 @@ size_t decompress(
   out++;
   *out = in >> 20; /* value 8 */
   out; in++;
-  // repeat 3 additionally times 
+  // repeat additionally 3 times 
   ...
  }
  return out - outstart;
