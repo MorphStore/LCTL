@@ -63,7 +63,7 @@ namespace LCTL {
      * @return 0
      */
     template <typename F, typename ...Ts>
-    struct getPosParameterForGenerator<F, List<String<decltype("length"_tstr), Ts...>>> {
+    struct getPosParameterForGenerator<F, List<String<decltype("length"_tstr)>, Ts...>> {
         static constexpr size_t get = getPosParameterForGenerator<F, List<Ts...>>::get;
     };
     /**
