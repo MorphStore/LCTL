@@ -8,5 +8,5 @@
 
 #!/bin/bash
 
-g++ -O3 -I/$TVL -o test_correctness test_correctness.cpp
-g++ -O3 -I../../TVLLib -o test_correctness test_correctness.cpp
+g++ -std=gnu++17 -O3 -I/$TVL -o test_correctness test_correctness.cpp
+g++ -std=gnu++17 -O3 -I../../TVLLib -o test_correctness test_correctness.cpp
