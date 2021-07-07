@@ -7,12 +7,10 @@
 #
 
 # delete all test result, but the last 3
-ls -dt */ | tail -n +3 | xargs rm -r
+#ls -dt */ | tail -n +3 | xargs rm -r
 
-datestring="$(date +"%Y%m%d-%H%M%S")"
-mkdir $datestring
-touch $datestring/correct.log
-touch $datestring/fail.log
+#datestring="$(date +"%Y%m%d-%H%M%S")"
+#mkdir $datestring
 
 if [ 1 -eq 0 ]; then
 for compressedbasebitsize in 8 16 32 64
@@ -28,37 +26,36 @@ do
       else
         g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize -DUPPER=18446744073709551615 -DBIT_WIDTH=$bitwidth -o statbp statbp.cpp
       fi
-      ./statbp $datestring "${datestring}/STATBP_SCALAR_UINT${compressedbasebitsize}_UINT${basebitsize}_BW${bitwidth}.err"
     done;
   done;
 done;
 rm statbp
 fi;
 if [ 0 -eq 0 ]; then
-for compressedbasebitsize in 8 16 32 64
+for compressedbasebitsize in 32
 do
-  for basebitsize in 8 16 32 64
+  for basebitsize in 8 
   do
-    for bitwidth in $( seq 1 $basebitsize )
-    do
-      for scale in $( seq 1 2)
-        do
-        if [ $bitwidth -lt 64 ] 
-        then
-          upper=$((2**$bitwidth-1))
-          g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize -DUPPER=$upper -DBIT_WIDTH=$bitwidth -DSCALE=$scale -o dynbp dynbp.cpp
-        else
-          g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize -DUPPER=18446744073709551615 -DBIT_WIDTH=$bitwidth -DSCALE=$scale -o dynbp dynbp.cpp
-        fi
-        ./dynbp $datestring "${datestring}/DYNBP_SCALAR_UINT${compressedbasebitsize}_UINT${basebitsize}_BW${bitwidth}.err"
+      for scale in $( seq 1 1)
+      do
+          echo "base_t ${basebitsize} compressedbase_t ${compressedbasebitsize}"
+          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -o dynbp dynbp.cpp
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -o dynbp dynbp.cpp
+          #time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DIR -o dynbp dynbp.cpp
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -o dynbp dynbp.cpp
+          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DIR -DCOMPRESS -o dynbp dynbp.cpp
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DCOMPRESS -o dynbp dynbp.cpp
+          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DIR -DDECOMPRESS -o dynbp dynbp.cpp
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DDECOMPRESS -o dynbp dynbp.cpp
+          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DIR -DDECOMPRESS -DCOMPRESS -o dynbp dynbp.cpp
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DCOMPRESS -DDECOMPRESS -o dynbp dynbp.cpp
       done;
-    done;
   done;
 done;
 rm dynbp
 
 fi;
-if [ 1 -eq 1 ]; then
+if [ 0 -eq 1 ]; then
 for compressedbasebitsize in 8 16 32 64
 do
   for basebitsize in 8 16 32 64
@@ -72,7 +69,6 @@ do
       else
         g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize -DUPPER=18446744073709551615 -DBIT_WIDTH=$bitwidth -DREF_STATFORSTATBP=1 -o statforstatbp statforstatbp.cpp
       fi
-      ./statforstatbp $datestring "${datestring}/STATFORSTATBP_SCALAR_UINT${compressedbasebitsize}_UINT${basebitsize}_REF1_BW${bitwidth}.err"
     done;
   done;
 done;
@@ -95,7 +91,6 @@ do
         else
           g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize -DUPPER=18446744073709551615 -DBIT_WIDTH=$bitwidth -DREF=1 -DSCALE=$scale -o statfordynbp statfordynbp.cpp
         fi
-        ./statfordynbp $datestring "${datestring}/STATFORDYNBP_SCALAR_UINT${compressedbasebitsize}_UINT${basebitsize}_REF1_BW${bitwidth}_SCALE${scale}.err"
       done;
     done;
   done;
@@ -119,7 +114,6 @@ do
         else
           g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize -DUPPER=18446744073709551615 -DBIT_WIDTH=$bitwidth -DSCALE=$scale -o dynforbp dynforbp.cpp
         fi
-        ./dynforbp $datestring "${datestring}/DYNFORBP_SCALAR_UINT${compressedbasebitsize}_UINT${basebitsize}_REF${REF_STATFORSTATBP}_BW${bitwidth}_SCALE${scale}.err"
       done;
     done;
   done;

@@ -42,7 +42,7 @@ template <
 using dynbp = ColumnFormat <
   processingStyle_t,
   Loop<
-    StaticTokenizer<sizeof(typename processingStyle_t::base_t) * 8 * scale_t>,
+    StaticTokenizer<sizeof(typename processingStyle_t::base_t)*8*scale_t>,
     ParameterCalculator<
       ParameterDefinition<
         String<decltype("bitwidth"_tstr)>,

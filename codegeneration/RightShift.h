@@ -249,7 +249,7 @@ namespace LCTL {
 #endif
           *outBase |= (logicalencoding_t::apply(inBase, tokensize, parameter)  >> bits) % (1 << bitsize_t);
 #if LCTL_VERBOSECOMPRESSIONCODE
-          std::cout << (uint64_t) *inBase << " >> " << bits << ") & ((1U << "
+          std::cout << (uint64_t) *inBase << " >> " << bits << ") & ((1UL << "
                   << bitsize_t << ")-1); // (Bitsize "<< bitsize_t<<")\n";
 #endif
       };
@@ -267,7 +267,7 @@ namespace LCTL {
           *outBase = (*inBase >> bits) % ( (compressedbase_t) 1 << (((bitsize_t-1) % (sizeof(base_t)*8))+1));
 
 #if LCTL_VERBOSEDECOMPRESSIONCODE
-          std::cout << " *inBase >> " << bits << ") & ((1U << "
+          std::cout << " *inBase >> " << bits << ") & ((1UL << "
                   << bitsize_t << ")-1); // (Bitsize "<< bitsize_t<<")\n";
 #endif
       };

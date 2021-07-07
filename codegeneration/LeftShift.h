@@ -122,7 +122,7 @@ namespace LCTL {
         *outBase |= (outbase_t) ((logicalencoding_t::apply(inBase, tokensize, parameter)
                   & (((outbase_t)1 << (bitsize_t % (sizeof(outbase_t)*8))) -1)) << (bits % (sizeof(outbase_t)*8))) ;
 #       if LCTL_VERBOSECODE
-          std::cout << "& ((1U << " << bitsize_t << ") -1) << " << bits << ");\n";
+          std::cout << "& ((1UL << " << bitsize_t << ") -1) << " << bits << ");\n";
 #       endif
         return;
       };
@@ -143,7 +143,7 @@ namespace LCTL {
                     (((inbase_t) 1 << (bitsize_t % (sizeof(outbase_t)*8))) -1)
                   ) << (bits % (sizeof(inbase_t)*8))) ;
 #       if LCTL_VERBOSECODE
-          std::cout << "& ((1U << " << bitsize_t << ") -1) << " << bits << ");\n";
+          std::cout << "& ((1UL << " << bitsize_t << ") -1) << " << bits << ");\n";
 #       endif
         return;
       };
