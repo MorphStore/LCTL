@@ -32,23 +32,36 @@ done;
 rm statbp
 fi;
 if [ 0 -eq 0 ]; then
-for compressedbasebitsize in 32
+for compressedbasebitsize in 8 16 32 64
 do
-  for basebitsize in 8 
+  for basebitsize in 8 16 32 64
   do
-      for scale in $( seq 1 1)
+      for scale in 1 2
       do
-          echo "base_t ${basebitsize} compressedbase_t ${compressedbasebitsize}"
-          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -o dynbp dynbp.cpp
-          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -o dynbp dynbp.cpp
-          #time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DIR -o dynbp dynbp.cpp
-          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -o dynbp dynbp.cpp
-          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DIR -DCOMPRESS -o dynbp dynbp.cpp
-          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DCOMPRESS -o dynbp dynbp.cpp
-          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DIR -DDECOMPRESS -o dynbp dynbp.cpp
-          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DDECOMPRESS -o dynbp dynbp.cpp
-          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DIR -DDECOMPRESS -DCOMPRESS -o dynbp dynbp.cpp
-          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=1 -DCOMPRESS -DDECOMPRESS -o dynbp dynbp.cpp
+          echo "${basebitsize}\n${compressedbasebitsize}\n${scale}"
+          # program does nothing
+          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale -o dynbp dynbp.cpp 
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale -o dynbp dynbp.cpp
+          # program defines type alias for a dynbp format
+          #time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale -o dynbp dynbp.cpp
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale -o dynbp dynbp.cpp
+          # program defines type alias for a dynbp format and does compression
+          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale  -DCOMPRESS -o dynbp dynbp.cpp
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale -DCOMPRESS -o dynbp dynbp.cpp
+          # program defines type alias for a dynbp format and does decompression
+          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale -DDECOMPRESS -o dynbp dynbp.cpp
+          # g++ -s -O3 -ftime-report -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale -DDECOMPRESS -o dynbp dynbp.cpp
+          # program defines type alias for a dynbp format and does compression and decompression
+          time -f '%e ' g++ -O3 -I../../../TVLLib -DSCALAR -DCOMPRESSEDBASEBITSIZE=$compressedbasebitsize -DBASEBITSIZE=$basebitsize  -DSCALE=$scale -DCOMPRESS -DDECOMPRESS -o dynbp dynbp.cpp
+          echo ''
+          #make clean -s -f dynbpmakefile 
+          #ime -f '%e ' make -s scale=$scale basebitsize=$basebitsize compressedbasebitsize=$compressedbasebitsize compress=1 decompress=0 -f dynbpmakefile 
+          #make clean -s -f dynbpmakefile 
+          #time -f '%e ' make -s scale=$scale basebitsize=$basebitsize compressedbasebitsize=$compressedbasebitsize compress=0 decompress=1 -f dynbpmakefile 
+          rm dynbp
+          make  -s -f dynbpMakeFile 
+          #make clean -s -f dynbpmakefile 
+         echo ''
       done;
   done;
 done;

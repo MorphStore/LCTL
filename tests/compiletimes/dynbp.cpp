@@ -8,10 +8,8 @@
 
 #include "../TestDefinitions.h"
 
-int main(int argc, char ** argv) {
-#if IR    
-    using format = dynbp <PROCESSINGSTYLE, SCALE, BASE>;
-# endif    
+int main(int argc, char ** argv) { 
+   using format = dynbp <PROCESSINGSTYLE, SCALE, BASE>;  
     BASE * in = (BASE *) malloc(sizeof(BASE));
     COMPRESSEDBASE * out = (COMPRESSEDBASE *) malloc(sizeof(COMPRESSEDBASE));
 # if defined COMPRESS

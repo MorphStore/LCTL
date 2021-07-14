@@ -34,6 +34,7 @@ for outputdatatype in size:
         print ""
 '''
 # generate testcases for static for static bp
+'''
 size = [8, 16,32,64]
 for outputdatatype in size:
     for inputdatatype in size:
@@ -45,5 +46,35 @@ for outputdatatype in size:
 	    if (inputdatatype != outputdatatype):
 		s =", "  + "uint" + "% s" % inputdatatype +"_t"
             print "    testcaseCorrectness < String < decltype(\"Static FOR Static BP\"_tstr) >, REF_STATFORSTATBP, " + format(upper, '#X') + ", sizeof(uint" + "% s" % outputdatatype + "_t) * 8 * countInLog, false, statforstatbp <scalar<v" + "% s" % outputdatatype + "<uint" + "% s" % outputdatatype + "_t>>, REF_STATFORSTATBP, " + "% s" % bitwidth + s + " > >::apply();"
+            print "#  endif"
+        print ""
+'''
+# generate testcases for static for dynamic bp
+'''
+size = [8, 16,32,64]
+for outputdatatype in size:
+    for inputdatatype in size:
+        for bitwidth_dec in range(inputdatatype):
+            bitwidth = bitwidth_dec+1
+            upper = (2**(bitwidth-1) - 1 + 2**(bitwidth-1))
+            print "#  if CRITERION_STATFORDYNBP(" + "% s" % outputdatatype + ", " + "% s" % inputdatatype + ", " + "% s" % format(upper, '#X') + ")"
+	    s = ""
+	    if (inputdatatype != outputdatatype):
+		s =", "  + "uint" + "% s" % inputdatatype +"_t"
+            print "    testcaseCorrectness < String < decltype(\"Static FOR Dynamic BP\"_tstr) >, REF_STATFORDYNBP, " + format(upper, '#X') + ", sizeof(uint" + "% s" % outputdatatype + "_t) * 8 * countInLog * SCALE_STATFORDYNBP, false, statfordynbp <scalar<v" + "% s" % outputdatatype + "<uint" + "% s" % outputdatatype + "_t>>, REF_STATFORDYNBP, SCALE_STATFORDYNBP" + s + " > >::apply();"
+            print "#  endif"
+        print ""
+'''
+size = [8, 16,32,64]
+for outputdatatype in size:
+    for inputdatatype in size:
+        for bitwidth_dec in range(inputdatatype):
+            bitwidth = bitwidth_dec+1
+            upper = (2**(bitwidth-1) - 1 + 2**(bitwidth-1))
+            print "#  if CRITERION_DYNFORBP(" + "% s" % outputdatatype + ", " + "% s" % inputdatatype + ", " + "% s" % format(upper, '#X') + ")"
+	    s = ""
+	    if (inputdatatype != outputdatatype):
+		s =", "  + "uint" + "% s" % inputdatatype +"_t"
+            print "    testcaseCorrectness < String < decltype(\"Dynamic FOR Dynamic BP\"_tstr) >, LOWER_DYNFORBP, " + format(upper, '#X') + ", sizeof(uint" + "% s" % outputdatatype + "_t) * 8 * countInLog * SCALE_DYNFORBP, false, dynforbp <scalar<v" + "% s" % outputdatatype + "<uint" + "% s" % outputdatatype + "_t>>, SCALE_DYNFORBP" + s + " > >::apply();"
             print "#  endif"
         print ""

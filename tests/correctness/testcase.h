@@ -167,7 +167,7 @@ template <
   const bool isSorted_t,
   typename format_t 
 >
-struct testcaseCorrectness {
+struct testcaseRuntimes {
   /* input data type and output datatype of algorithm */
   using base_t = typename format_t::base_t;
   using compressedbase_t = typename format_t::compressedbase_t;
