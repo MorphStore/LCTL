@@ -16,6 +16,8 @@
 
 #include "delta/delta.h"
 
+#include "lab.h"
+
 /*#include "../compare/staticbp_8_8_1.h"
 #include "../compare/staticbp_8_8_2.h"
 #include "../compare/staticbp_8_8_3.h"
