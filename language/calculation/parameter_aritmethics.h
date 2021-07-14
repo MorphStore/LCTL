@@ -36,4 +36,4 @@ namespace LCTL {
   };
 
 }//TODO if template paramter matches
- //         better include in arithmethics.h -> overlode apply();
+ //         better include in arithmetics.h -> overlode apply();
