@@ -70,6 +70,7 @@ namespace LCTL {
 #     endif
 #     define LCTL_VERBOSECODE LCTL_VERBOSECOMPRESSIONCODE
       uint8_t * compressedMemoryRegion8Start = compressedMemoryRegion8;
+      
       return Generator <
         typename format_t::processingStyle_t,
         typename format_t::transform,

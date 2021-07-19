@@ -100,7 +100,11 @@ namespace LCTL {
         /* parameters calculated at runtime*/
         std::tuple<parameter_t...> parameters) 
       {
-          Write<
+#         if LCTL_VERBOSECALLGRAPH
+            std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+            std::cout << "\tGenerator<processingStyle_t, UnrolledLoopIR<numberOfValuesPerBlock_t, KnownTokenizerIR<1,EncoderIR<logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>, Combiner<Token, LCTL_UNALIGNED>,Combiner<Token, LCTL_ALIGNED>>,base_t,remainingValuesToWrite_t,bitposition_t,parametername_t...>::compress(...)\n";
+#         endif
+        Write<
             processingStyle_t, 
             base_t, 
             bitposition_t % (sizeof(compressedbase_t)*8),
@@ -155,6 +159,10 @@ namespace LCTL {
       std::tuple<parameter_t...> parameters,
       parametername_t...
     ) {
+#         if LCTL_VERBOSECALLGRAPH
+            std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+            std::cout << "\tGenerator<processingStyle_t, UnrolledLoopIR<numberOfValuesPerBlock_t, KnownTokenizerIR<1,EncoderIR<logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>, Combiner<Token, LCTL_UNALIGNED>,Combiner<Token, LCTL_ALIGNED>>,base_t,remainingValuesToWrite_t,bitposition_t,parametername_t...>::decompress(...)\n";
+#         endif
         // data decoding
         Write<processingStyle_t, base_t, bitposition_t, bitwidth_t, logicalencoding_t, (size_t) 1>::decompress(inBase, tokensize, outBase, parameters);
         /**
@@ -251,7 +259,7 @@ namespace LCTL {
           //  if (bitposition_t != 0) std::cout << "  outBase ";
 #         //endif
           //  std::cout << "Increase outbase at the end of block " << (bitposition_t != 0? "yes" : "no") << "\n";
-          //Incr<bitposition_t != 0, compressedbase_t, 1>::apply(outBase);       
+          //Incr<bitposition_t != 0, compressedbase_t, 1>::apply(outBase);  
           return 0;
       }
 

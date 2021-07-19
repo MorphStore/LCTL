@@ -116,6 +116,10 @@ namespace LCTL {
         const size_t tokensize, 
         const std::tuple<parameters_t...> parameter)
       {
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\t LeftShift<processingStyle_t, inbase_t,bits,true,logicalencoding_t, true, bitsize_t>::compress(...)\n";
+#       endif
 #       if LCTL_VERBOSECODE
           std::cout << "  *outBase |= (";
 #       endif
@@ -134,6 +138,10 @@ namespace LCTL {
         const size_t tokensize, 
         const std::tuple<parameters_t...> parameter)
       {
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\t LeftShift<processingStyle_t, inbase_t,bits,true,logicalencoding_t, true, bitsize_t>::decompress(...)\n";
+#       endif
 #       if LCTL_VERBOSECODE
           std::cout << "  *outBase |= (";
 #       endif
@@ -191,6 +199,10 @@ namespace LCTL {
         const size_t tokensize, 
         const std::tuple<parameters_t...> parameter
       ){
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tLeftShift<processingStyle_t, inbase_t, bits,true,logicalencoding_t,false, bitsize_t>::compress(...)\n";
+#       endif
 #         if LCTL_VERBOSECODE
             std::cout << "  *outBase |= ";
 #         endif 
@@ -208,6 +220,10 @@ namespace LCTL {
         const size_t tokensize, 
         const std::tuple<parameters_t...> parameter
       ){
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tLeftShift<processingStyle_t, inbase_t, bits,true,logicalencoding_t,false, bitsize_t>::decompress(...)\n";
+#       endif
 #         if LCTL_VERBOSECODE
             std::cout << "  *outBase |= ";
 #         endif 
@@ -264,6 +280,10 @@ namespace LCTL {
         const size_t tokensize, 
         std::tuple<parameternames_t...> parameter
       ){
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tLeftShift<processingStyle_t, inbase_t, 0,true,logicalencoding_t,true, bitsize_t>::compress(...)\n";
+#       endif
 #         if LCTL_VERBOSECODE
             std::cout << "  *outBase = ";
 #         endif
@@ -281,6 +301,10 @@ namespace LCTL {
         const size_t tokensize, 
         std::tuple<parameternames_t...> parameter
       ){
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tLeftShift<processingStyle_t, inbase_t, 0,true,logicalencoding_t,true, bitsize_t>::decompress(...)\n";
+#       endif
 #         if LCTL_VERBOSECODE
             std::cout << "  *outBase = ";
 #         endif
@@ -339,6 +363,10 @@ namespace LCTL {
           const size_t tokensize, 
           std::tuple<parameternames_t...> parameter
       ){
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tLeftShift<processingStyle_t, inbase_t, 0,true, logicalencoding_t,false, bitsize_t>::compress(...)\n";
+#       endif
 #         if LCTL_VERBOSECODE
             std::cout << "  *outBase = ";
 #         endif
@@ -356,6 +384,10 @@ namespace LCTL {
           const size_t tokensize, 
           std::tuple<parameternames_t...> parameter
       ){
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tLeftShift<processingStyle_t, inbase_t, 0,true, logicalencoding_t,false, bitsize_t>::decompress(...)\n";
+#       endif
 #         if LCTL_VERBOSECODE
             std::cout << "  *outBase = ";
 #         endif

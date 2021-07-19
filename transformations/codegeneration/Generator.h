@@ -97,6 +97,10 @@ namespace LCTL {
         const size_t countInLog, 
         uint8_t * & out8)
       {
+        # if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tGenerator<processingStyle_t, ColumnFormatIR<loop_t>, base_t, tokensize_t, 0, parametername_t...>::compress(...)\n";
+        # endif
         /* 
          * base_t* = copy of the pointer, base_t*& would be an alias an manipulate the  pointers outside the compression method
          * 
@@ -106,10 +110,11 @@ namespace LCTL {
         compressedbase_t * & outBase = reinterpret_cast<compressedbase_t * & >(out8);
 
         #if VERBOSECOMPRESSIONCODE
-          std::cout << "  "<< typeString.at(*typeid(base_t).name()) << " * inBase = reinterpret_cast<"<< typeString.at(*typeid(base_t).name()) << " *>(in8);\n";
-          std::cout << "  "<< typeString.at(*typeid(compressedbase_t).name()) << " * outBase = reinterpret_cast<"<< typeString.at(*typeid(compressedbase_t).name()) << " *>(out8);\n\n";
+          std::cout << "  "<< typeString.at(*typeid(base_t).name()) << " * & inBase = reinterpret_cast<"<< typeString.at(*typeid(base_t).name()) << " * & >(in8);\n";
+          std::cout << "  "<< typeString.at(*typeid(compressedbase_t).name()) << " * & outBase = reinterpret_cast<"<< typeString.at(*typeid(compressedbase_t).name()) << " * & >(out8);\n\n";
         #endif
         /* loop_t is RolledLoop */
+        
         Generator<
           processingStyle_t, 
           loop_t, 
@@ -144,8 +149,12 @@ namespace LCTL {
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint8_t * decompress(
         const uint8_t * & in8, 
         const size_t countInLog, 
-        uint8_t * out8)
+        uint8_t * & out8)
       {
+        # if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tGenerator<processingStyle_t, ColumnFormatIR<loop_t>, base_t, tokensize_t, 0, parametername_t...>::decompress(...)\n";
+        # endif
         /* compressed data */
         const compressedbase_t * & inBase = reinterpret_cast<const compressedbase_t * & >(in8);
         /* decompressed data */
@@ -249,7 +258,13 @@ namespace LCTL {
         size_t tokensize, 
         compressedbase_t * & outBase,
         std::tuple<parameter_t...> parameters)
-      { return (uint8_t *) outBase; }
+      { 
+        # if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tGenerator<processingStyle_t, ColumnFormatIR<loop_t>, base_t, tokensize_t, 0, parametername_t...>::compress(...)\n";
+        # endif
+        return (uint8_t *) outBase; 
+      }
       /**
        * @brief does nothing
        * 
@@ -372,43 +387,47 @@ namespace LCTL {
      */
     template <typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint8_t * compress(
-        const base_t * & inBase, 
-        const size_t tokensize, 
-        compressedbase_t * & outBase,
-        const std::tuple<parameters_t...> parameters)
+      const base_t * & inBase, 
+      const size_t tokensize, 
+      compressedbase_t * & outBase,
+      const std::tuple<parameters_t...> parameters)
     {
-      const char * tmp = name_t::GetString();
-#     if LCTL_VERBOSECOMPRESSIONCODE
-        std::cout << "// Write compiletime known parameter value (" << tmp <<") " << (uint64_t) parameter_t << " with " << bitwidthparameter_t << " Bits in outBase.\n";
-#     endif
-      WriteFix<
-        processingStyle_t,
-        parametertype_t,
-        parameter_t, 
-        bitposition, 
-        bitwidthparameter_t
-      >::compress(outBase);
-      Generator<
-        processingStyle_t, 
-        UnrolledLoopIR<
-          tokensizeOuterLoop_t,
-          KnownTokenizerIR<
-            1,
-            EncoderIR<  
-              logicalencoding_t, 
-              Value<size_t,bitwidth_t>, 
-              Combiner<Token, LCTL_UNALIGNED> 
-            >
-          >, 
-          Combiner<Token, LCTL_UNALIGNED>,
-          Combiner<Concat<tail_t...>, LCTL_ALIGNED>
-        >,
-        base_t,
-        inputsize_t,
-        (bitposition + bitwidthparameter_t) % (sizeof(compressedbase_t)*8),
-        parametername_t...
-      >::compress(inBase, tokensize, outBase, parameters);
-      return (uint8_t *) outBase;
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tGenerator<processingStyle_t, UnrolledLoopIR<tokensizeOuterLoop_t, KnownTokenizerIR<1,EncoderIR< logicalencoding_t, Value<bitwidthtype_t, bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>, Combiner<Token, LCTL_UNALIGNED>,Combiner<Concat<std::tuple<name_t, Value<parametertype_t, parameter_t>, Value<bitwidthparametertype_t, bitwidthparameter_t>>, tail_t...>, LCTL_ALIGNED>>,base_t,inputsize_t,bitposition, parametername_t...>::compress(...)\n";
+#       endif
+        const char * tmp = name_t::GetString();
+#       if LCTL_VERBOSECOMPRESSIONCODE
+          std::cout << "// Write compiletime known parameter value (" << tmp <<") " << (uint64_t) parameter_t << " with " << bitwidthparameter_t << " Bits in outBase.\n";
+#       endif
+        WriteFix<
+          processingStyle_t,
+          parametertype_t,
+          parameter_t, 
+          bitposition, 
+          bitwidthparameter_t
+        >::compress(outBase);
+        Generator<
+          processingStyle_t, 
+          UnrolledLoopIR<
+            tokensizeOuterLoop_t,
+            KnownTokenizerIR<
+              1,
+              EncoderIR<  
+                logicalencoding_t, 
+                Value<size_t,bitwidth_t>, 
+                Combiner<Token, LCTL_UNALIGNED> 
+              >
+            >, 
+            Combiner<Token, LCTL_UNALIGNED>,
+            Combiner<Concat<tail_t...>, LCTL_ALIGNED>
+          >,
+          base_t,
+          inputsize_t,
+          (bitposition + bitwidthparameter_t) % (sizeof(compressedbase_t)*8),
+          parametername_t...
+        >::compress(inBase, tokensize, outBase, parameters);
+        return (uint8_t *) outBase;
     }
 
     /**
@@ -436,6 +455,10 @@ namespace LCTL {
         base_t * & outBase,
         const std::tuple<parameters_t...> parameters)
     {
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tGenerator<processingStyle_t, UnrolledLoopIR<tokensizeOuterLoop_t, KnownTokenizerIR<1,EncoderIR< logicalencoding_t, Value<bitwidthtype_t, bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>, Combiner<Token, LCTL_UNALIGNED>,Combiner<Concat<std::tuple<name_t, Value<parametertype_t, parameter_t>, Value<bitwidthparametertype_t, bitwidthparameter_t>>, tail_t...>, LCTL_ALIGNED>>,base_t,inputsize_t,bitposition, parametername_t...>::decompress(...)\n";
+#       endif
 #     if LCTL_VERBOSECOMPRESSIONCODE
         const char * tmp = name_t::GetString();
         std::cout << "// Skip Parameter " << tmp << "\n";
@@ -577,38 +600,42 @@ namespace LCTL {
         compressedbase_t * & outBase,
         const std::tuple<parameters_t...> parameters)
       {
-        // TODO might be another datatype
-        const base_t * runtimeParameter = std::get<positionInParameterTuple_t>(parameters);             
-        Write<
-          processingStyle_t, 
-          base_t, 
-          bitposition_t, 
-          bitwidthparameter_t, 
-          Token, 
-          1
-        >::compress(
-          runtimeParameter, 
-          tokensize, 
-          outBase,
-          parameters
-        );
-        Generator<
-          processingStyle_t, 
-          UnrolledLoopIR<
-            tokensizeOuterLoop_t,
-            KnownTokenizerIR<
-              1,
-              EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
-            >, 
-            Combiner<Token, LCTL_UNALIGNED>,
-            Combiner<Concat<tail_t...>, LCTL_ALIGNED>
-          >,
-          base_t,
-          inputsize_t,
-          (bitposition_t + bitwidthparameter_t) % (sizeof(compressedbase_t)*8),
-          parametername_t...
-        >::compress(inBase, tokensize, outBase, parameters);
-        return (uint8_t*) outBase;
+#         if LCTL_VERBOSECALLGRAPH
+            std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+            std::cout << "Generator< processingStyle_t, UnrolledLoopIR<tokensizeOuterLoop_t, KnownTokenizerIR<1,EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>, Combiner<Token, LCTL_UNALIGNED>,Combiner<Concat<std::tuple<name_t, StringIR<std::integer_sequence<char, namestring_t...>, positionInParameterTuple_t>, Value<size_t, bitwidthparameter_t>>, tail_t...>, LCTL_ALIGNED>>,base_t,inputsize_t,bitposition_t,parametername_t...>::compress(...)\n";
+#         endif
+          // TODO might be another datatype
+          const base_t * runtimeParameter = std::get<positionInParameterTuple_t>(parameters);             
+          Write<
+            processingStyle_t, 
+            base_t, 
+            bitposition_t, 
+            bitwidthparameter_t, 
+            Token, 
+            1
+          >::compress(
+            runtimeParameter, 
+            tokensize, 
+            outBase,
+            parameters
+          );
+          Generator<
+            processingStyle_t, 
+            UnrolledLoopIR<
+              tokensizeOuterLoop_t,
+              KnownTokenizerIR<
+                1,
+                EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >
+              >, 
+              Combiner<Token, LCTL_UNALIGNED>,
+              Combiner<Concat<tail_t...>, LCTL_ALIGNED>
+            >,
+            base_t,
+            inputsize_t,
+            (bitposition_t + bitwidthparameter_t) % (sizeof(compressedbase_t)*8),
+            parametername_t...
+          >::compress(inBase, tokensize, outBase, parameters);
+          return (uint8_t*) outBase;
       }
 
       /**
@@ -633,7 +660,11 @@ namespace LCTL {
           const size_t tokensize, 
           base_t * & outBase,
           const std::tuple<parameters_t...> parameters)
-      {       
+      {
+#         if LCTL_VERBOSECALLGRAPH
+            std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+            std::cout << "Generator< processingStyle_t, UnrolledLoopIR<tokensizeOuterLoop_t, KnownTokenizerIR<1,EncoderIR<  logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>, Combiner<Token, LCTL_UNALIGNED>,Combiner<Concat<std::tuple<name_t, StringIR<std::integer_sequence<char, namestring_t...>, positionInParameterTuple_t>, Value<size_t, bitwidthparameter_t>>, tail_t...>, LCTL_ALIGNED>>,base_t,inputsize_t,bitposition_t,parametername_t...>::decompress(...)\n";
+#         endif       
   #       if LCTL_VERBOSEDECOMPRESSIONCODE
           if ((bitwidthparameter_t + bitposition_t) >= sizeof(compressedbase_t)*8) std::cout << "  inBase";
   #       endif
@@ -740,6 +771,10 @@ namespace LCTL {
         compressedbase_t * & outBase,
         std::tuple<parameters_t... > parameters)
       {
+#         if LCTL_VERBOSECALLGRAPH
+            std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+            std::cout << "Generator<processingStyle_t, UnrolledLoopIR<tokensizeOuterLoop_t, KnownTokenizerIR<1,EncoderIR<logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>,Combiner<Token, LCTL_UNALIGNED>,Combiner<Concat<std::tuple<Token,Token,NIL,Value<basev_t,0>>, tail_t...>, LCTL_ALIGNED>>,base_t,inputsize_t,bitposition,parametername_t...>::compress(...)\n";
+#         endif  
         outBase++;
         return (uint8_t*) outBase;
       }
@@ -751,6 +786,10 @@ namespace LCTL {
         compressedbase_t * & outBase,
         std::tuple<parameters_t... > parameters)
       {
+#         if LCTL_VERBOSECALLGRAPH
+            std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+            std::cout << "Generator<processingStyle_t, UnrolledLoopIR<tokensizeOuterLoop_t, KnownTokenizerIR<1,EncoderIR<logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>,Combiner<Token, LCTL_UNALIGNED>,Combiner<Concat<std::tuple<Token,Token,NIL,Value<basev_t,0>>, tail_t...>, LCTL_ALIGNED>>,base_t,inputsize_t,bitposition,parametername_t...>::decompress(...)\n";
+#         endif  
         outBase++;
         return (uint8_t*) outBase;
       }

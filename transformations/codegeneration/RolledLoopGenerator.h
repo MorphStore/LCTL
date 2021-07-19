@@ -101,6 +101,10 @@ namespace LCTL {
         compressedbase_t * & outBase,
         std::tuple<parameter_t...> parameters) 
       {
+#         if LCTL_VERBOSECALLGRAPH
+            std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+            std::cout << "\tGenerator<processingStyle_t, RolledLoopIR<KnownTokenizerIR<tokensize_t, next_t>,combiner_t>,base_t,0,bitposition_t,parametername_t...>::compress(...)\n";
+#         endif
 #         if LCTL_VERBOSECOMPRESSIONCODE
             std::cout << "  // " << (size_t) (countInLog/tokensize_t) << " loop pass(es)\n"; 
 #         endif
@@ -158,6 +162,10 @@ namespace LCTL {
         base_t * & outBase,
         std::tuple<parameter_t...> parameters) 
       {
+#         if LCTL_VERBOSECALLGRAPH
+            std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+            std::cout << "\tGenerator<processingStyle_t, RolledLoopIR<KnownTokenizerIR<tokensize_t, next_t>,combiner_t>,base_t,0,bitposition_t,parametername_t...>::decompress(...)\n";
+#         endif
 #         if  LCTL_VERBOSEDECOMPRESSIONCODE
             std::cout << "  // " << (size_t) (countInLog/tokensize_t) << " loop pass(es)\n"; 
 #         endif

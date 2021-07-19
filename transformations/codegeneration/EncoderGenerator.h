@@ -96,6 +96,10 @@ namespace LCTL {
       compressedbase_t * & outBase,
       std::tuple<parameter_t...> parameters)
       {
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tGenerator<processingStyle_t, EncoderIR<logicalencoding_t,Value<long unsigned int, bitwidth_t>,Combiner<Token, true>>,base_t,1,bitposition_t,parametername_t...>::compress(...)\n";
+#       endif
 #       if LCTL_VERBOSECOMPRESSIONCODE
           std::cout << "// Write next token " << (uint64_t) *inBase << " at bitposition 0\n";
 #       endif         
@@ -136,10 +140,13 @@ namespace LCTL {
       base_t * & outBase,
       std::tuple<parameter_t...> parameters)
       {
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tGenerator<processingStyle_t, EncoderIR<logicalencoding_t,Value<long unsigned int, bitwidth_t>,Combiner<Token, true>>,base_t,1,bitposition_t,parametername_t...>::decompress(...)\n";
+#       endif
 #       if LCTL_VERBOSEDECOMPRESSIONCODE
           std::cout << "// Write next token " << (uint64_t) *inBase << " at bitposition 0\n";
 #       endif
-          std::cout << "EncoderGenerator.h: decompress address " << (uint64_t *) outBase << "\n";
         Write<
           processingStyle_t, 
           base_t, 

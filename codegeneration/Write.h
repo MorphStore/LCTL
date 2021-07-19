@@ -255,6 +255,10 @@ namespace LCTL {
       compressedbase_t * & outBase,
       const std::tuple<parameters_t...> parameter)
     {
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tWrite<class processingStyle_t,base_t,bitposition_t,bitwidth_t,logicalencoding_t,tokensize_t>::compress(...)\n";
+#       endif
       /*
        * all or only the lower bits of the value are written to the current output.
        * If bitposition_t != 0, the value has to be leftshifted for bitposition_t bits
@@ -292,6 +296,10 @@ namespace LCTL {
       base_t * & outBase,
       const std::tuple<parameters_t...> parameter)
     {
+#       if LCTL_VERBOSECALLGRAPH
+          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+          std::cout << "\tWrite<class processingStyle_t,base_t,bitposition_t,bitwidth_t,logicalencoding_t,tokensize_t>::compress(...)\n";
+#       endif
 //        std::cout << "address compressed and decompressed " << (uint64_t* ) inBase << " " << (uint64_t* ) outBase << "\n";
         /* Write Bitstring to the output, rightshifted */
         RightShift<
