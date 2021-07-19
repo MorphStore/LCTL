@@ -83,15 +83,15 @@ void getTime(struct timespec &t_cpu, struct timespec &t_real, struct timespec &t
 int main(int argc, char ** argv) {
 
 	//Auswahl eines Datentyps, der für die interneVerarbeitung genutzt wird
-	using processingStyle = scalar <v8<uint8_t>>;
-	//using processingStyle = scalar <v16<uint16_t>>;
+	//using processingStyle = scalar <v8<uint8_t>>;
+	using processingStyle = scalar <v16<uint16_t>>;
 	//using processingStyle = scalar <v32<uint32_t>>;
 	//using processingStyle = scalar <v64<uint64_t>>;
 
 	// Datentyp Eingabespalte -> könnte ggf. auch anders gewählt werden
 	using base_t = uint8_t; // uint8_t, uint16_t, uint32_t, uint64_t
 
-	  //number of blocks
+	//number of blocks
 	size_t numberOfBlocks = 2;
 	//Size used for Frame of Reference
 	size_t forScale = 2;
@@ -103,7 +103,6 @@ int main(int argc, char ** argv) {
 	std::uniform_int_distribution < base_t > distr(0 + forScale, 3);
 	base_t * uncompressedMemoryRegion = create_array < base_t >(numberOfValues, distr);
 	uint8_t * PointerToUncompressedData = (uint8_t *)uncompressedMemoryRegion;
-
 	uint8_t * compressedMemoryRegion = (uint8_t *)malloc(sizeof(base_t) * numberOfValues * 2);
 	uint8_t * PointerToCompressedDataForCompression = (uint8_t *)compressedMemoryRegion;
 	uint8_t * PointerToCompressedDataForDecompression = (uint8_t *)compressedMemoryRegion;
@@ -115,7 +114,7 @@ int main(int argc, char ** argv) {
 
 	getTime(beginCompression_cpu, beginCompression_real, beginCompression_mono);
 
-	Cascade<Compress<statfor2 <processingStyle, base_t>>, Compress<statbp2 <processingStyle, base_t>>>::morphDirectly(
+	Cascade<Compress<statfor2 <processingStyle, base_t>>, Compress<statbp2 <processingStyle>>>::morphDirectly(
 		(const uint8_t * &)(PointerToUncompressedData),
 		numberOfValues,
 		(uint8_t * &)(PointerToCompressedDataForCompression)
@@ -123,14 +122,8 @@ int main(int argc, char ** argv) {
 
 	getTime(endCompression_cpu, endCompression_real, endCompression_mono);
 	getTime(beginDecompression_cpu, beginDecompression_real, beginDecompression_mono);
-
-	/*Cascade<Decompress<statbp2 <processingStyle, base_t>>, Decompress<statfor2 <processingStyle, base_t>>>::morphDirectly(
-		(const uint8_t * &)(PointerToCompressedDataForDecompression),
-		numberOfValues,
-		(uint8_t * &)(PointerToDecompressedData)
-	);*/
   
-  Cascade<Decompress<statbp2 <processingStyle, base_t>>, Decompress<statfor2 <processingStyle, base_t>>>::morphDirectly(
+  Cascade<Decompress<statbp2 <processingStyle>>, Decompress<statfor2 <processingStyle, base_t>>>::morphDirectly(
 		(const uint8_t * &)(PointerToCompressedDataForDecompression),
 		numberOfValues,
 		(uint8_t * &)(PointerToDecompressedData)

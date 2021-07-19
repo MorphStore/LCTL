@@ -6,6 +6,8 @@
  */
 
 #include "../Definitions.h"
+#include <header/preprocessor.h>
+#include <header/vector_extension_structs.h>
 
 #ifndef LCTL_CODEGENERATION_LEFTSHIFT_H
 #define LCTL_CODEGENERATION_LEFTSHIFT_H
