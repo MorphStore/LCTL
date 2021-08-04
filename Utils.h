@@ -12,6 +12,7 @@
 #include <cstring>
 #include <math.h> 
 #include <array>
+#include <regex>
 
 #ifndef UTILS_H
 #define UTILS_H
@@ -216,25 +217,63 @@ void eraseAllSubStr(std::string & mainStr, const std::string & toErase) {
     }
 }
 
-void printTree(std::string str) {
-    std::size_t found = str.find_first_of("<,>");
-    int cnt = 0;
-    while (found != std::string::npos) {
-        if (str[found] == '<') {
-            cnt++;
-            str.insert(found + 1, "\n" + std::string(cnt, ' '));
-            found = str.find_first_of("<,>", found + cnt + 1);
-        } else if (str[found] == ',') {
-            str.insert(found + 1, "\n" + std::string(cnt - 1, ' '));
-            found = str.find_first_of("<,>", found + cnt);
-        } else if (str[found] == '>') {
-            cnt--;
-            str.insert(found, "\n" + std::string(cnt, ' '));
-            found = str.find_first_of("<,>", found + cnt + 2);
-        }
-
+void printTree(std::string str, bool printReadable = true) {
+  std::string strWoIntegerSequence;
+  std::regex expressionIntegerSequence ("std::integer_sequence<char((, \\(char\\)(1[0-9]{2}|[1-9][0-9]))+)>\\s?");   // a 4-digit number with a trailing 91 or a 2-digit number or a 3-digit number with a trailing 0
+  std::regex_replace (std::back_inserter(strWoIntegerSequence), str.begin(), str.end(), expressionIntegerSequence, "\"$1\"");
+  str = strWoIntegerSequence;
+  
+  std::string strWithParameterNames = "";
+    std::string strOriginalTail = "";
+    std::regex expressionChar ("(, \\(char\\)(1[0-9]{2}|[1-9][0-9]))");
+    auto words_begin = 
+        std::sregex_iterator(str.begin(), str.end(), expressionChar);
+    auto words_end = std::sregex_iterator();
+    
+    for (std::sregex_iterator i = words_begin; i != words_end; i++) {
+      std::smatch match = *i;                                                 
+      std::string match_str = match.str();
+      std::string match_substr = match_str.substr(8, match_str.length());
+      int8_t charAsNumber = atoi(match_substr.c_str());
+      std::string match_numberAsChar {charAsNumber};
+      strWithParameterNames.append(match.prefix().str());
+      strWithParameterNames.append(match_numberAsChar);
+      strOriginalTail = match.suffix().str();
     }
-    std::cout << str << "\n";
+    strWithParameterNames.append(strOriginalTail);
+    str = strWithParameterNames;
+  
+  std::size_t found = str.find_first_of("<");
+  bool breakline = true;
+  int cnt = 0;
+  // Search for next position wher '<', ',', or '>' appears
+  while (found != std::string::npos) {
+    // if '<' found and, next '>' is found before '<' don'T insert any line breaks.
+    if (str[found] == '<' && str.find_first_of(">", found +1) < str.find_first_of("<", found +1) ) {
+      std::size_t foundClosingParenthises =  str.find_first_of(">", found + 1);
+      found = str.find_first_of(
+                ",>",
+                str.find_first_of(">", found + 1) + 1
+              );
+    // else if '<' and '>' earlies then '<', insert line break , increment the indent, insert and corresponding number of white spaces
+    } else if (str[found] == '<') {
+      cnt++;
+      str.insert(found + 1, "\n" + std::string(cnt, ' '));
+      found = str.find_first_of("<,>", found + cnt);
+    //insert line break , insert and corresponding number of white spaces
+    } else if (str[found] == ',') {
+        str.insert(found + 1, "\n" + std::string(cnt - 1, ' '));
+        found = str.find_first_of("<,>", found + cnt + 1);
+    } else if (str[found] == '>') {
+      if (cnt > 0) cnt--;
+      str.insert(found, "\n" + std::string(cnt, ' '));
+      found = str.find_first_of("<,>", found + cnt + 2);
+    } else {
+      break;
+    }
+  }
+  std::cout << str << "\n";
+  return;
 }
 
 class warning : public std::exception{
