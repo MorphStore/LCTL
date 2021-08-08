@@ -47,9 +47,17 @@ namespace LCTL {
         const size_t tokensize, 
         compressedbase_t * & outBase,
         std::tuple<parameter_t...> parameters
-      ) {return 0;
+      ) {
+#if LCTL_VERBOSECOMPRESSIONCODE
+        std::cout << "// Write next token " << (uint64_t) *inBase << " at bitposition " << bitposition << "\n";
+#endif
+        //TODO should write first element of T (templates for unrolling are not implemented, yet)
+        //Write<processingStyle_t, base_t, bitposition, bitwidth_t, logicalencoding_t, (size_t) 1>::compress(inBase, tokensize, outBase, parameters);
 
-    }
+#if LCTL_VERBOSECOMPRESSIONCODE
+        std::cout << "  inBase ";
+#endif
+    return 0;}
           
     template <typename... parameter_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t decompress(
@@ -59,7 +67,6 @@ namespace LCTL {
         std::tuple<parameter_t...> parameters) {
     return 0;}
     //TODO implement for very specific way and stepwise genralize
-    //merge ANALYZE TREE from repo -> better String<> printing
   };
 
 }
