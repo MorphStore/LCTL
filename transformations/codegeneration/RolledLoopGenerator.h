@@ -9,6 +9,7 @@
 #define LCTL_TRANSFORMATIONS_CODEGENERATION_ROLLEDLOOPGENERATOR_H
 
 #include "./UnrolledLoopWOEncodedParametersGenerator.h"
+#include "./MultipleConcatGenerator.h"
 #include "../../Definitions.h"
 
 namespace LCTL {
@@ -117,7 +118,7 @@ namespace LCTL {
           while(i <= countInLog) {
               Generator<
                 processingStyle_t, 
-                /* next_t can be Parameter or Loop or Encoder*/      
+                /* next_t can be Parameter or Loop or Encoder*/
                 next_t, 
                 base_t, 
                 tokensize_t, 
