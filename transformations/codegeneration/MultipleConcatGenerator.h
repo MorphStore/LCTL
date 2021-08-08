@@ -47,15 +47,8 @@ namespace LCTL {
         const size_t tokensize, 
         compressedbase_t * & outBase,
         std::tuple<parameter_t...> parameters
-      ) {
-#if LCTL_VERBOSECOMPRESSIONCODE
-        std::cout << "// Write next token " << (uint64_t) *inBase << " at bitposition " << bitposition << "\n";
-#endif
-        Write<processingStyle_t, base_t, bitposition_t, bitwidth_t, logicalencoding_t, (size_t) 1>::compress(inBase, tokensize, outBase, parameters);
+      ) {return 0;
 
-#if LCTL_VERBOSECOMPRESSIONCODE
-        std::cout << "  inBase ";
-#endif
     }
           
     template <typename... parameter_t>
