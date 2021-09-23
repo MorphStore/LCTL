@@ -10,12 +10,14 @@
 
 /* prints intermediate tree during compress-call */
 #define LCTL_VERBOSETREE false
-/* do you wan a lot of information during tests? */
+/* do you watn a lot of information during tests? */
 #define LCTL_VERBOSETEST true
 /* prints compression code during compress-call */
 #define LCTL_VERBOSECOMPRESSIONCODE false
 /* prints decompression code during decompress-call */
 #define LCTL_VERBOSEDECOMPRESSIONCODE false
+/* print call graph of copress/decompress functions; not yet fully implemented */
+#define LCTL_VERBOSECALLGRAPH false
 /* Warnings at runtime */
 #define LCTL_VERBOSERUNTIME true
 #define LCTL_WARNING_COLOR "\033[1m\033[36m"      /* Bold Cyan */

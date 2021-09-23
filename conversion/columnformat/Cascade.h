@@ -44,15 +44,16 @@ namespace LCTL {
     using first_t = conversion_t;
     
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphDirectly(
-      const uint8_t * uncompressedMemoryRegion8,
+      const uint8_t * & uncompressedMemoryRegion8,
       size_t countInLog,
       uint8_t * & compressedMemoryRegion8) 
-    {    
+    {   
+        std::cout << "address output " << (uint64_t *) compressedMemoryRegion8 << "\n";
         return conversion_t:: apply(uncompressedMemoryRegion8, countInLog, compressedMemoryRegion8);  
     }
     
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphIndirectly(
-      const uint8_t * uncompressedMemoryRegion8,
+      const uint8_t * & uncompressedMemoryRegion8,
       size_t countInLog,
       uint8_t * & compressedMemoryRegion8) 
     {       
@@ -116,33 +117,36 @@ namespace LCTL {
      * @author: Juliana Hildebrandt
      */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphDirectly(
-        const uint8_t * & uncompressedMemoryRegion8,
+        const uint8_t * & sourceMemoryRegion8,
         size_t countInLog,
-        uint8_t * & compressedMemoryRegion8) 
+        uint8_t * & targetMemoryRegion8) 
     {
-      const uint8_t * uncompressedMemoryRegion8IterationFirstConversion = uncompressedMemoryRegion8;
-      uint8_t * outputRegionFirstConversion8 = (uint8_t *) malloc(sizeof(typename firstConversion_t::format_t::base_t) * lcm_tokensize_t);
-      uint8_t * compressedMemoryRegion8Start = compressedMemoryRegion8;
+      const uint8_t * sourceMemoryRegion8IterationFirstConversion = sourceMemoryRegion8;
+      
+      uint8_t * targetMemoryRegion8Start = targetMemoryRegion8;
       
       size_t i = lcm_tokensize_t;
       while(i <= countInLog) {
+        
+        uint8_t * outputRegionFirstConversion8 = (uint8_t *) malloc(sizeof(typename firstConversion_t::format_t::base_t) * lcm_tokensize_t);
         uint8_t * outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
         firstConversion_t::apply(
-          uncompressedMemoryRegion8IterationFirstConversion,
+          sourceMemoryRegion8IterationFirstConversion,
           lcm_tokensize_t,
           outputRegionFirstConversion8IterationFirstConversion
         );
         outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
         Cascade<secondConversion_t, conversion_t...>::morphDirectly(
-                outputRegionFirstConversion8IterationFirstConversion, 
+                (const uint8_t *&) outputRegionFirstConversion8IterationFirstConversion, 
                 lcm_tokensize_t, 
-                compressedMemoryRegion8);
+                targetMemoryRegion8);
         i += lcm_tokensize_t;
+        free(outputRegionFirstConversion8);
       }
-      free(outputRegionFirstConversion8);
       
-      size_t size = compressedMemoryRegion8 - compressedMemoryRegion8Start;
-      compressedMemoryRegion8 = compressedMemoryRegion8Start;
+      
+      size_t size = targetMemoryRegion8 - targetMemoryRegion8Start;
+      targetMemoryRegion8 = targetMemoryRegion8Start;
       return size;
     }
   

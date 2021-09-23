@@ -186,8 +186,8 @@ namespace LCTL {
           uint64_t decodedValue = * valuePtr >> numberOfBitsToShiftRight;
           /* now it is possible, that the encoded parameter is a span value over 2 to 9 compressed words and we have to fetch the higher bits */
           /*if (numberOfBits_t < 64) {
-            uint64_t moduloForRelevantBits = 1U << numberOfBits_t;
-            decodedValue = decodedValue & ((1U << numberOfBits_t) - 1);
+            uint64_t moduloForRelevantBits = 1UL << numberOfBits_t;
+            decodedValue = decodedValue & ((1UL << numberOfBits_t) - 1);
           }*/
           for (int i = 1; i < ceil((numberOfBits_t + bitposition_t)/(sizeof(compressedbase_t)*8)); i++ )
             decodedValue |= *(inBase + offsetToInBase + i) << (sizeof(compressedbase_t)*8 - bitposition_t) + i * sizeof(compressedbase_t)*8 ;
