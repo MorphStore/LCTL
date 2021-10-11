@@ -170,6 +170,24 @@ namespace LCTL {
           return ret;
       }
   };
+  
+  template <>//TODO implement for base_t and uint64_t
+  struct Bitwidth<Token>
+  {   
+      template<typename... parameters_t>
+      MSV_CXX_ATTRIBUTE_FORCE_INLINE static const 
+      uint32_t apply(
+        const uint32_t * & inBase, 
+        const size_t tokensize, 
+        std::tuple<parameters_t...> parameter) 
+        {
+          const uint32_t ret = 32 - __builtin_clz(*inBase);
+#if       LCTL_VERBOSECODE
+            std::cout << "32 - __builtin_clz(" << ret << ")";
+#         endif
+          return ret;
+      }
+  };
 
   template <typename T>
   struct Min{};
