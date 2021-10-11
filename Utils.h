@@ -13,6 +13,8 @@
 #include <math.h> 
 #include <array>
 #include <regex>
+#include <assert.h>
+#include <random>
 
 #ifndef UTILS_H
 #define UTILS_H
@@ -274,6 +276,68 @@ void printTree(std::string str, bool printReadable = true) {
   }
   std::cout << str << "\n";
   return;
+}
+
+// https://stackoverflow.com/questions/9983239/how-to-generate-zipf-distributed-numbers-efficiently
+template<typename T>
+T * create_zipfarray(size_t size, double alpha = 1) {
+  std::default_random_engine generator;
+  generator.seed(time(nullptr));
+  auto ptr = (T *) malloc(size * sizeof (T));
+  
+  static bool first = true;      // Static first time flag
+  static double c = 0;          // Normalization constant
+  static double *sum_probs;     // Pre-calculated sum of probabilities
+  double z;                     // Uniform random number (0 < z < 1)
+  T zipf_value = 0;               // Computed exponential value to be returned
+  double i;                     // Loop counter
+  T low, high, mid;           // Binary-search bounds
+  T n = std::numeric_limits<T>::max(); // highest value
+  std::uniform_real_distribution<double> unif(0,1);
+  std::default_random_engine re;
+  
+  std::cout << " (1/3) compute normalization...";
+  if (alpha == 1 && sizeof(T) == 1){
+    c = 1/6.1243449628172803688769736905381395096450230580943;
+  } else if (alpha == 1 && sizeof(T) == 2) {
+    c = 1/11.667578183235786507644855315242858894024329469942;
+  } else {
+    // Compute normalization constant on first call only
+    if (first) {
+      for (i=1; i<=n; i++)
+        c = c + (1.0 / pow((double) i, alpha));
+      c = 1.0 / c;
+    first = false;
+    }
+  }
+  std::cout << " (2/3) compute Sum...";
+  sum_probs = (double *) malloc((n+2)*sizeof(*sum_probs));
+  sum_probs[0] = c;
+  for (i = 1; i<=n && i != 0; i++) {
+    sum_probs[(int)i] = sum_probs[(int)i-1] + c/((double)i+1);
+  }
+ 
+  std::cout << " (3/3) compute Values...\n";
+  for (size_t i = 0; i < size; ++i) {
+      do { z = unif(re); }
+      while ((z == 0) || (z == 1));
+
+      // Map z to the value
+      low = 0, high = n, mid;
+      do {
+        mid = floor((low+high)/2);
+        if (sum_probs[mid] >= z && sum_probs[mid-1] < z) {
+          zipf_value = mid;
+          break;
+        } else if (sum_probs[mid] >= z) {
+          high = mid-1;
+        } else {
+          low = mid+1;
+        }
+      } while (low <= high);
+    ptr[i] = zipf_value;
+  }  
+  return ptr;
 }
 
 class warning : public std::exception{
