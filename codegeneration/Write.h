@@ -18,14 +18,14 @@ namespace LCTL {
   /**
    * @brief used to write all span value overheads to the next output word
    * 
-   * @param<processingStyle_t>    TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
-   * @param<base_t>               datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
-   * @param<bitposition_t>        next value to encode starts at bitposition
-   * @param<bitwidth_t>           bitwidth of value to encode
-   * @param<logicalencoding_t>    eventually logical preprocessing
-   * @param<tokensize_t>          number of uncompressed input values (or decompressed output values) (-> at the moment exactly one value)
-   * @param<maxOverhangWordCounter_t> maximal number of overhanging bitstrings in dependence of base_t and compressedbase_t
-   * @param<overhangWordCounter_t>    current overhang counter
+   * @tparam processingStyle_t    TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam base_t               datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
+   * @tparam bitposition_t        next value to encode starts at bitposition
+   * @tparam bitwidth_t           bitwidth of value to encode
+   * @tparam logicalencoding_t    eventually logical preprocessing
+   * @tparam tokensize_t>          number of uncompressed input values (or decompressed output values) (- at the moment exactly one value)
+   * @tparam maxOverhangWordCounter_t maximal number of overhanging bitstrings in dependence of base_t and compressedbase_t
+   * @tparam overhangWordCounter_t    current overhang counter
    * 
    * @date: 01.06.2021 12:00
    * @author: Juliana Hildebrandt
@@ -45,103 +45,115 @@ namespace LCTL {
     
     template<typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
-      const base_t * & inBase, 
-      compressedbase_t * & outBase,
-      const size_t tokensize, 
-      const std::tuple<parameters_t...> parameter)
+            const base_t * & inBase, 
+            compressedbase_t * & outBase,
+            const size_t tokensize, 
+            const std::tuple<parameters_t...> parameter)
     {
-#       if LCTL_VERBOSECOMPRESSIONCODE
-          if ((bitposition_t + bitwidth_t) >= sizeof(compressedbase_t)*8) std::cout << "  outBase";
-#       endif
-        Incr<
-          ((bitposition_t + bitwidth_t) >= (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8),
-          compressedbase_t, 
-          processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(outBase);
-#       if LCTL_VERBOSECOMPRESSIONCODE
-          std::cout << "// " << bitposition_t << " + " << bitwidth_t << " <->" << sizeof(compressedbase_t)*8 << "\n";
-          std::cout << "// number of bits rightshift " << bitwidth_t-((bitposition_t + bitwidth_t)%(sizeof(compressedbase_t)*8)) << "\n";
-#       endif
-        RightShift<
-          processingStyle_t, 
-          base_t, 
-          /* number of bits to shift to the right */
-          //bitwidth_t-((bitposition_t + bitwidth_t-1)%(sizeof(compressedbase_t)*8))+1, 
-          (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8-bitposition_t,
-          /* do or don't*/
-          ((bitposition_t + bitwidth_t) > (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8),
-          /* logical encoding */
-          logicalencoding_t,
-          /* mask? */
-          false,
-          /* number of bits that belong to the inputvalue -> bit mask if needed */
-          bitwidth_t
-        >::compress(inBase, outBase, tokensize, parameter);
-        IncrAndWriteSpan<
-          /* input data type */
-          processingStyle_t, 
-          /* output data type */
-          base_t, 
-          /* where to write in the current output word*/
-          bitposition_t,
-          /* bitsize of the value written to the output */
-          bitwidth_t,
-          logicalencoding_t,
-          /* logical number of values belonging to the item */
-          tokensize_t,
-          maxOverhangWordCounter_t,
-          overhangWordCounter_t + 1
-        >::compress(inBase, outBase, tokensize, parameter);
-        return;
+#     if LCTL_VERBOSECOMPRESSIONCODE
+        if ((bitposition_t + bitwidth_t) >= sizeof(compressedbase_t)*8) std::cout << "  outBase";
+#     endif
+        
+      Incr<
+        ((bitposition_t + bitwidth_t) >= (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8),
+        compressedbase_t, 
+        processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value
+      >::apply(outBase);
+      
+#     if LCTL_VERBOSECOMPRESSIONCODE
+        std::cout << "// " << bitposition_t << " + " << bitwidth_t << " <->" << sizeof(compressedbase_t)*8 << "\n";
+        std::cout << "// number of bits rightshift " << bitwidth_t-((bitposition_t + bitwidth_t)%(sizeof(compressedbase_t)*8)) << "\n";
+#     endif
+        
+      RightShift<
+        processingStyle_t, 
+        base_t, 
+        /* number of bits to shift to the right */
+        //bitwidth_t-((bitposition_t + bitwidth_t-1)%(sizeof(compressedbase_t)*8))+1, 
+        (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8-bitposition_t,
+        /* do or don't*/
+        ((bitposition_t + bitwidth_t) > (overhangWordCounter_t+1)*sizeof(compressedbase_t)*8),
+        /* logical encoding */
+        logicalencoding_t,
+        /* mask? */
+        false,
+        /* number of bits that belong to the inputvalue -> bit mask if needed */
+        bitwidth_t
+      >::compress(inBase, outBase, tokensize, parameter);
+      
+      IncrAndWriteSpan<
+        /* input data type */
+        processingStyle_t, 
+        /* output data type */
+        base_t, 
+        /* where to write in the current output word*/
+        bitposition_t,
+        /* bitsize of the value written to the output */
+        bitwidth_t,
+        logicalencoding_t,
+        /* logical number of values belonging to the item */
+        tokensize_t,
+        maxOverhangWordCounter_t,
+        overhangWordCounter_t + 1
+      >::compress(inBase, outBase, tokensize, parameter);
+      
+      return;
     }
 
     template<typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
-      const compressedbase_t * & inBase, 
-      base_t * & outBase,
-      const size_t tokensize, 
-      const std::tuple<parameters_t...> parameter)
+            const compressedbase_t * & inBase, 
+            base_t * & outBase,
+            const size_t tokensize, 
+            const std::tuple<parameters_t...> parameter)
     {
-#       if LCTL_VERBOSEDECOMPRESSIONCODE
-          if (bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ) std::cout << "  inBase";
-#       endif
-        /* Increment inBase if needed */
-        Incr<
-          (bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ), 
-          compressedbase_t, 
-          processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(inBase);  
-        LeftShift<
-          processingStyle_t,
-          base_t,
-          /* number of bits to shift to the right */
-          //bitwidth_t-((bitposition_t + bitwidth_t-1)%(sizeof(compressedbase_t)*8))+1, 
-          (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 - bitposition_t,
-          /* do or don't*/
-          ((bitposition_t + bitwidth_t) > (overhangWordCounter_t+1) * sizeof(compressedbase_t)*8),
-          /* logical encoding */
-          Token,
-          /* mask? */
-          (bitposition_t + bitwidth_t < (overhangWordCounter_t + 2) * sizeof(compressedbase_t)*8),
-          /* number of bits that belong to the inputvalue -> bit mask if needed */
-          bitwidth_t + bitposition_t - (overhangWordCounter_t + 1) * sizeof(compressedbase_t)*8
-          >::decompress(inBase, outBase, tokensize, parameter);
-        IncrAndWriteSpan<
-          /* input data type */
-          processingStyle_t, 
-          /* output data type */
-          base_t, 
-          /* where to write in the current output word*/
-          bitposition_t,
-          /* bitsize of the value written to the output */
-          bitwidth_t,
-          logicalencoding_t,
-          /* logical number of values belonging to the item */
-          tokensize_t,
-          maxOverhangWordCounter_t,
-          overhangWordCounter_t + 1
+#     if LCTL_VERBOSEDECOMPRESSIONCODE
+        if (bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ) std::cout << "  inBase";
+#     endif
+        
+      /* Increment inBase if needed */
+      Incr<
+        (bitposition_t + bitwidth_t >= (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 ), 
+        compressedbase_t, 
+        processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value
+      >::apply(inBase);
+      
+      LeftShift<
+        processingStyle_t,
+        base_t,
+        /* number of bits to shift to the right */
+        //bitwidth_t-((bitposition_t + bitwidth_t-1)%(sizeof(compressedbase_t)*8))+1, 
+        (overhangWordCounter_t+1) * sizeof(compressedbase_t) * 8 - bitposition_t,
+        /* do or don't*/
+        ((bitposition_t + bitwidth_t) > (overhangWordCounter_t+1) * sizeof(compressedbase_t)*8),
+        /* logical encoding */
+        Token,
+        /* mask? */
+        (bitposition_t + bitwidth_t < (overhangWordCounter_t + 2) * sizeof(compressedbase_t)*8),
+        /* number of bits that belong to the inputvalue -> bit mask if needed */
+        bitwidth_t + bitposition_t - (overhangWordCounter_t + 1) * sizeof(compressedbase_t)*8
         >::decompress(inBase, outBase, tokensize, parameter);
-        return;
+      
+      IncrAndWriteSpan<
+        /* input data type */
+        processingStyle_t, 
+        /* output data type */
+        base_t, 
+        /* where to write in the current output word*/
+        bitposition_t,
+        /* bitsize of the value written to the output */
+        bitwidth_t,
+        logicalencoding_t,
+        /* logical number of values belonging to the item */
+        tokensize_t,
+        maxOverhangWordCounter_t,
+        overhangWordCounter_t + 1
+      >::decompress(inBase, outBase, tokensize, parameter);
+      
+      return;
     }
   };
+  
   /**
    * @brief recursion break
    */
@@ -160,51 +172,57 @@ namespace LCTL {
     size_t maxOverhangWordCounter_t   
   >
   struct IncrAndWriteSpan<
-    processingStyle_t,
-    base_t,
-    bitposition_t,
-    bitwidth_t,
-    logicalencoding_t,
-    tokensize_t,
-    maxOverhangWordCounter_t,
-    maxOverhangWordCounter_t
+          processingStyle_t,       
+          base_t,
+          bitposition_t,
+          bitwidth_t,
+          logicalencoding_t,
+          tokensize_t,
+          maxOverhangWordCounter_t,
+          maxOverhangWordCounter_t
   >{
     using compressedbase_t = typename processingStyle_t::base_t;
     
     template<typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
-      const base_t * & inBase, 
-      compressedbase_t * & outBase,
-      const size_t tokensize, 
-      const std::tuple<parameters_t...> parameter)
+            const base_t * & inBase, 
+            compressedbase_t * & outBase,
+            const size_t tokensize, 
+            const std::tuple<parameters_t...> parameter)
     {
-#       if LCTL_VERBOSECOMPRESSIONCODE
-          if ((bitposition_t + bitwidth_t) >= (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8) std::cout << "  outBase";
-#       endif
-        Incr<
-          ((bitposition_t + bitwidth_t) == (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8), 
-          compressedbase_t, 
-          processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(outBase);
-        return;
+#     if LCTL_VERBOSECOMPRESSIONCODE
+        if ((bitposition_t + bitwidth_t) >= (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8) std::cout << "  outBase";
+#     endif
+        
+      Incr<
+        ((bitposition_t + bitwidth_t) == (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8), 
+        compressedbase_t, 
+        processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(outBase);
+      
+      return;
     }
 
     template<typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
-      const compressedbase_t * & inBase, 
-      base_t * & outBase,
-      const size_t tokensize, 
-      const std::tuple<parameters_t...> parameter)
+            const compressedbase_t * & inBase, 
+            base_t * & outBase,
+            const size_t tokensize, 
+            const std::tuple<parameters_t...> parameter)
     {
-#       if LCTL_VERBOSECOMPRESSIONCODE
-          if ((bitposition_t + bitwidth_t) >= (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8) std::cout << "  inBase";
-#       endif
-        Incr<
-          ((bitposition_t + bitwidth_t) == (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8), 
-          compressedbase_t, 
-          processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value>::apply(inBase);
-        return;
+#     if LCTL_VERBOSECOMPRESSIONCODE
+        if ((bitposition_t + bitwidth_t) >= (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8) std::cout << "  inBase";
+#     endif
+        
+      Incr<
+        ((bitposition_t + bitwidth_t) == (maxOverhangWordCounter_t+1)*sizeof(compressedbase_t)*8), 
+        compressedbase_t, 
+        processingStyle_t::size::value / processingStyle_t::vector_helper_t::size_byte::value
+      >::apply(inBase);
+      
+      return;
     }
   };
+  
   /**
    * @brief Write is responsible for 
    * (1) the writing of encoded data values and 
@@ -213,12 +231,12 @@ namespace LCTL {
    * compressed output and writing the decoded values to the decompressed output
    * In this general template, the values have a logical preprocessing
    *      
-   * @param<processingStyle_t>    TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
-   * @param<base_t>               datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
-   * @param<bitposition_t>        next value to encode starts at bitposition
-   * @param<bitwidth_t>           bitwidth of value to encode
-   * @param<logicalencoding_t>    eventualy logical preprocessing
-   * @param<tokensize_t>          number of uncompressed input values (or decompressed output values) (-> at the moment exactly one value)
+   * @tparam processingStyle_t    TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam base_t               datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
+   * @tparam bitposition_t        next value to encode starts at bitposition
+   * @tparam bitwidth_t           bitwidth of value to encode
+   * @tparam logicalencoding_t    eventualy logical preprocessing
+   * @tparam tokensize_t>          number of uncompressed input values (or decompressed output values) (- at the moment exactly one value)
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -230,7 +248,8 @@ namespace LCTL {
     size_t bitposition_t,
     size_t bitwidth_t,
     typename logicalencoding_t,
-    size_t tokensize_t
+    size_t tokensize_t,
+    bool doOrDont = true
   >
   struct Write{
     using compressedbase_t = typename processingStyle_t::base_t;
@@ -248,60 +267,120 @@ namespace LCTL {
      */
     template<typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
-      /* uncompressed input */
-      const base_t * & inBase, 
-      const size_t tokensize, 
-      /* compressed output */
-      compressedbase_t * & outBase,
-      const std::tuple<parameters_t...> parameter)
+            /* uncompressed input */
+            const base_t * & inBase, 
+            const size_t tokensize, 
+            /* compressed output */
+            compressedbase_t * & outBase,
+            const std::tuple<parameters_t...> parameter)
     {
-#       if LCTL_VERBOSECALLGRAPH
-          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
-          std::cout << "\tWrite<class processingStyle_t,base_t,bitposition_t,bitwidth_t,logicalencoding_t,tokensize_t>::compress(...)\n";
-#       endif
-      /*
-       * all or only the lower bits of the value are written to the current output.
-       * If bitposition_t != 0, the value has to be leftshifted for bitposition_t bits
-       */
-        LeftShift<
-          processingStyle_t, 
-          base_t, 
-          bitposition_t, 
-          true, 
-          logicalencoding_t, 
-          false, 
-          0
-        >::compress(inBase, outBase, tokensize_t, parameter);
+#     if LCTL_VERBOSECALLGRAPH
+        std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+        std::cout << "\tWrite<class processingStyle_t,base_t,bitposition_t,bitwidth_t,logicalencoding_t,tokensize_t>::compress(...)\n";
+#     endif
+    /*
+     * all or only the lower bits of the value are written to the current output.
+     * If bitposition_t != 0, the value has to be leftshifted for bitposition_t bits
+     */
+      LeftShift<
+        processingStyle_t,     
+        base_t, 
+        bitposition_t, 
+        true, 
+        logicalencoding_t, 
+        false, 
+        0 
+      >::compress(inBase, outBase, tokensize_t, parameter);
+      
 #       if LCTL_VERBOSECOMPRESSIONCODE
-          std::cout << "  // bitposition " << bitposition_t << " bitwidth_t " << bitwidth_t << " sizeof(compressedbase_t)*8 " << sizeof(compressedbase_t)*8 << "\n";
-          if ((bitposition_t + bitwidth_t) >= sizeof(compressedbase_t)*8) std::cout << "  outBase";
+        std::cout << "  // bitposition " << bitposition_t << " bitwidth_t " << bitwidth_t << " sizeof(compressedbase_t)*8 " << sizeof(compressedbase_t)*8 << "\n";
+        if ((bitposition_t + bitwidth_t) >= sizeof(compressedbase_t)*8) std::cout << "  outBase";
 #       endif
-        IncrAndWriteSpan<
-          processingStyle_t, 
-          base_t, 
-          bitposition_t, 
-          bitwidth_t, 
-          logicalencoding_t, 
-          tokensize_t,
-          sizeof(base_t)/sizeof(compressedbase_t) + 1
-        >::compress(inBase, outBase, tokensize, parameter);
-        return;
-
+        
+      IncrAndWriteSpan<
+        processingStyle_t, 
+        base_t, 
+        bitposition_t, 
+        bitwidth_t, 
+        logicalencoding_t, 
+        tokensize_t,
+        sizeof(base_t)/sizeof(compressedbase_t) + 1
+      >::compress(inBase, outBase, tokensize, parameter);
+      
+      return;
     }
 
     template<typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
-      const compressedbase_t * & inBase, 
-      const size_t tokensize, 
-      base_t * & outBase,
-      const std::tuple<parameters_t...> parameter)
+            const compressedbase_t * & inBase, 
+            const size_t tokensize, 
+            base_t * & outBase,
+            const std::tuple<parameters_t...> parameter)
     {
+#     if LCTL_VERBOSECALLGRAPH
+        std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
+        std::cout << "\tWrite<class processingStyle_t,base_t,bitposition_t,bitwidth_t,logicalencoding_t,tokensize_t>::decompress(...)\n";
+#     endif
+        
+      RightShift<
+        processingStyle_t, 
+        base_t,
+        /* number of bits to shift to the right */
+        bitposition_t % (sizeof(compressedbase_t)*8),
+        /* do or don't */  
+        true,
+        Token,
+        /* mask needed for the case not the whole input word has to be encoded -> yes, but not iff the masksize is as big as sizeof(base_t)*/
+        bitwidth_t % (sizeof(compressedbase_t)*8) && (bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),//(bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),
+        /* number of bits that belong to the inputvalue -> bit mask if needed */
+        bitwidth_t
+      >::decompress(inBase, outBase, tokensize, parameter);
+      
+      IncrAndWriteSpan<
+        processingStyle_t, 
+        base_t, 
+        bitposition_t, 
+        bitwidth_t, 
+        Token, 
+        tokensize_t,
+        sizeof(base_t)/sizeof(compressedbase_t) + 1
+      >::decompress(inBase, outBase, tokensize, parameter);
+      
+      *outBase = logicalencoding_t::inverse::apply(outBase, tokensize, parameter);
+      
+      return;
+    }
+    /**
+     * @brief (1) shift and assemble logically preprocessed value and write it
+     * to the output, (2) reverse preprocessing and write the original value to
+     * the output (overwrite), (3) compare value with the given operator op with the value 
+     * val and overwrite the output - if passed - with the current position,
+     * special treatment for delta encoding
+     * 
+     * @param sourceMemoryRegion8
+     * @param tokensize
+     * @param val
+     * @param selectedPositions
+     * @param currentPosition
+     * @param parameters
+     */
+    template<template<typename> class op, bool outputIsDeltaencoded, typename... parameter_t>
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static void select(
+            const uint8_t * & sourceMemoryRegion8, 
+            const size_t tokensize, 
+            base_t val,
+            uint64_t * & selectedPositions,
+            uint64_t currentPosition,
+            uint64_t * lastPosition,
+            std::tuple<parameter_t...> parameters) 
+     {
 #       if LCTL_VERBOSECALLGRAPH
           std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
-          std::cout << "\tWrite<class processingStyle_t,base_t,bitposition_t,bitwidth_t,logicalencoding_t,tokensize_t>::compress(...)\n";
+          std::cout << "\tWrite<class processingStyle_t,base_t,bitposition_t,bitwidth_t,logicalencoding_t,tokensize_t>::select(...)\n";
 #       endif
-//        std::cout << "address compressed and decompressed " << (uint64_t* ) inBase << " " << (uint64_t* ) outBase << "\n";
-        /* Write Bitstring to the output, rightshifted */
+          
+        base_t assembledValue = 0;
+        
         RightShift<
           processingStyle_t, 
           base_t,
@@ -314,7 +393,8 @@ namespace LCTL {
           bitwidth_t % (sizeof(compressedbase_t)*8) && (bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),//(bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),
           /* number of bits that belong to the inputvalue -> bit mask if needed */
           bitwidth_t
-        >::decompress(inBase, outBase, tokensize, parameter);
+        >::decompress(sourceMemoryRegion8, &assembledValue, tokensize, parameters);
+        
         IncrAndWriteSpan<
           processingStyle_t, 
           base_t, 
@@ -323,10 +403,25 @@ namespace LCTL {
           Token, 
           tokensize_t,
           sizeof(base_t)/sizeof(compressedbase_t) + 1
-        >::decompress(inBase, outBase, tokensize, parameter);
-        *outBase = logicalencoding_t::inverse::apply(outBase, tokensize, parameter);
+        >::decompress(sourceMemoryRegion8, &assembledValue, tokensize, parameters);
+        
+        base_t decodedValue = logicalencoding_t::inverse::apply(&assembledValue, tokensize, parameters);
+        
+        if (op<base_t>(*assembledValue, val)) {
+        if (outputIsDeltaencoded == false)
+          // if positions are not deltaencoded, write current position
+          * selectedPositions = currentPosition;
+        else {
+          // if positions are deltaencoded
+          * selectedPositions = currentPosition - *lastPosition;
+          * lastPosition = currentPosition;
+        }
+        selectedPositions++;
+      }
+        
         return;
     }
+    
   };
 
   /* values have no logical preprocessing */
@@ -340,94 +435,154 @@ namespace LCTL {
     /* bitsize of the value written to the output */
     size_t bitwidth_t,
     /* logical number of values belonging to the item */
-    size_t tokensize_t
+    size_t tokensize_t,
+    bool doOrDont
   >
   struct Write<
-    processingStyle_t, 
-    base_t, 
-    bitposition_t, 
-    bitwidth_t, 
-    Token, 
-    tokensize_t
-  >{
-      using compressedbase_t = typename processingStyle_t::base_t;
-
-      template<typename... parameters_t>
-      MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
-        /* uncompressed input */
-        const base_t * & inBase, 
-        const size_t tokensize, 
-        /* compressed output */
-        compressedbase_t * & outBase,
-        const std::tuple<parameters_t...> parameter
-      ){ 
-        /* Write Bitstring to the output, if needed leftshifted */
-        LeftShift<
-          processingStyle_t, 
-          base_t,
-          /* number of bits to shift left */
-          bitposition_t,
-          /* do or don't */
-          true,
-          /* logical encoding */
-          Token,
-          /* use bit mask */
-          false, 
-          /* bit width of mask */
-          0
-        >::compress(inBase, outBase, tokensize_t, parameter);
-        IncrAndWriteSpan<
           processingStyle_t, 
           base_t, 
           bitposition_t, 
           bitwidth_t, 
           Token, 
           tokensize_t,
-          sizeof(base_t)/sizeof(compressedbase_t) + 1
-        >::compress(inBase, outBase, tokensize, parameter);
-        return;
-      }
+          doOrDont
+  >{
+    using compressedbase_t = typename processingStyle_t::base_t;
 
-      template<typename... parameters_t>
-      MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
-          const compressedbase_t * & inBase, 
-          const size_t tokensize, 
-          base_t * & outBase,
-          const std::tuple<parameters_t...> parameter
-      ){
-          /* Write Bitstring to the output, rightshifted */
-          RightShift<
-            processingStyle_t, 
-            base_t,
-            /* number of bits to shift to the right */
-            bitposition_t % (sizeof(compressedbase_t)*8),
-            /* do or don't */  
-            true,
-            Token,
-            /* mask needed for the case not the whole input word has to be encoded -> yes, but not iff the masksize is as big as sizeof(base_t)*/
-            bitwidth_t % (sizeof(compressedbase_t)*8) && (bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),//(bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),
-            /* number of bits that belong to the inputvalue -> bit mask if needed */
-            bitwidth_t
-          >::decompress(inBase, outBase, tokensize, parameter);
-          IncrAndWriteSpan<
-            processingStyle_t, 
-            base_t, 
-            bitposition_t, 
-            bitwidth_t, 
-            Token, 
-            tokensize_t,
-            sizeof(base_t)/sizeof(compressedbase_t) + 1
-          >::decompress(inBase, outBase, tokensize, parameter);
+    template<typename... parameters_t>
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
+            /* uncompressed input */
+            const base_t * & inBase, 
+            const size_t tokensize, 
+            /* compressed output */
+            compressedbase_t * & outBase,
+            const std::tuple<parameters_t...> parameter )
+    { 
+      /* Write Bitstring to the output, if needed leftshifted */
+      LeftShift<
+        processingStyle_t, 
+        base_t,
+        /* number of bits to shift left */
+        bitposition_t,
+        /* do or don't */
+        true,
+        /* logical encoding */
+        Token,
+        /* use bit mask */
+        false, 
+        /* bit width of mask */
+        0
+      >::compress(inBase, outBase, tokensize_t, parameter);
+      
+      IncrAndWriteSpan<
+        processingStyle_t, 
+        base_t, 
+        bitposition_t, 
+        bitwidth_t, 
+        Token, 
+        tokensize_t,
+        sizeof(base_t)/sizeof(compressedbase_t) + 1
+      >::compress(inBase, outBase, tokensize, parameter);
+      
+      return;
+    }
+
+    template<typename... parameters_t>
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
+              const compressedbase_t * & inBase, 
+              const size_t tokensize, 
+              base_t * & outBase,
+              const std::tuple<parameters_t...> parameter )
+    {
+      /* Write Bitstring to the output, rightshifted */
+      RightShift<
+        processingStyle_t, 
+        base_t,
+        /* number of bits to shift to the right */
+        bitposition_t % (sizeof(compressedbase_t)*8),
+        /* do or don't */  
+        true,
+        Token,
+        /* mask needed for the case not the whole input word has to be encoded -> yes, but not iff the masksize is as big as sizeof(base_t)*/
+        bitwidth_t % (sizeof(compressedbase_t)*8) && (bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),//(bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),
+        /* number of bits that belong to the inputvalue -> bit mask if needed */
+        bitwidth_t
+      >::decompress(inBase, outBase, tokensize, parameter);
+      
+      IncrAndWriteSpan<
+        processingStyle_t, 
+        base_t, 
+        bitposition_t, 
+        bitwidth_t, 
+        Token, 
+        tokensize_t,
+        sizeof(base_t)/sizeof(compressedbase_t) + 1
+      >::decompress(inBase, outBase, tokensize, parameter);
+      
+      return;
+    }
+    
+    template<template<typename> class op, bool outputIsDeltaencoded, typename... parameter_t>
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static void select(
+            const uint8_t * & sourceMemoryRegion8, 
+            const size_t tokensize, 
+            base_t val,
+            uint64_t * & selectedPositions,
+            uint64_t currentPosition,
+            uint64_t * lastPosition,
+            std::tuple<parameter_t...> parameters) 
+     {
+      
+      base_t assembledValue = 0;
+      
+      /* Write Bitstring to the output, rightshifted */
+      RightShift<
+        processingStyle_t, 
+        base_t,
+        /* number of bits to shift to the right */
+        bitposition_t % (sizeof(compressedbase_t)*8),
+        /* do or don't */  
+        true,
+        Token,
+        /* mask needed for the case not the whole input word has to be encoded -> yes, but not iff the masksize is as big as sizeof(base_t)*/
+        bitwidth_t % (sizeof(compressedbase_t)*8) && (bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),//(bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),
+        /* number of bits that belong to the inputvalue -> bit mask if needed */
+        bitwidth_t
+      >::decompress(sourceMemoryRegion8, &assembledValue, tokensize, parameters);
+      
+      IncrAndWriteSpan<
+        processingStyle_t, 
+        base_t, 
+        bitposition_t, 
+        bitwidth_t, 
+        Token, 
+        tokensize_t,
+        sizeof(base_t)/sizeof(compressedbase_t) + 1
+      >::decompress(sourceMemoryRegion8, &assembledValue, tokensize, parameters);
+      
+      if (op<base_t>(*assembledValue, val)) {
+        if (outputIsDeltaencoded == false)
+          // if positions are not deltaencoded, write current position
+          * selectedPositions = currentPosition;
+        else {
+          // if positions are deltaencoded
+          * selectedPositions = currentPosition - * lastPosition;
+          * lastPosition = currentPosition;
+        }
+        selectedPositions++;
       }
+      
+      return;
+    }
   };
 
 
   template <
-      class processingStyle_t,
-      typename base_t,
-      base_t value_t,
-      size_t bitposition_t, 
-      size_t bitwidth_t
+    class processingStyle_t,
+    typename base_t,
+    base_t value_t,
+    size_t bitposition_t, 
+    size_t bitwidth_t
   >
   struct WriteFix{
       using compressedbase_t = typename processingStyle_t::base_t;

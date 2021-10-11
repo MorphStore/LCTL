@@ -14,9 +14,9 @@ namespace LCTL {
   /**
    * @brief Increase inBase or outBase by tokensize, specialization for the case doOrDont == TRUE
    * 
-   * @param<doOrDont>           true
-   * @param<tokensize_t>        increase pointer by tokensize_t, if tokensize_t is known at compiletime
-   * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam doOrDont           true
+   * @tparam tokensize_t        increase pointer by tokensize_t, if tokensize_t is known at compiletime
+   * @tparam processingStyle     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * 
    * @todo do this in SIMD case vectorwise
    * 
