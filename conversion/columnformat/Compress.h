@@ -9,6 +9,7 @@
 #define CONVERSION_COLUMNFORMAT_COMPRESS_H
 
 #include "../../transformations/codegeneration/Generator.h"
+#include "../../language/Delta.h"
 #include <header/preprocessor.h>
 #include <header/vector_extension_structs.h>
 
@@ -20,7 +21,7 @@ namespace LCTL {
     static constexpr size_t staticTokensize = format::staticTokensize;
     using format_t = format;
 
-        /**
+    /**
      * @brief generates the compression code for the intermediate tree
      * 
      * @param uncompressedMemoryRegion8 uncompressed input data, castet to uint8_t (single Bytes)
@@ -41,9 +42,9 @@ namespace LCTL {
      * @author: Juliana Hildebrandt
      */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t apply(
-      const uint8_t * & uncompressedMemoryRegion8,
-        size_t countInLog,
-        uint8_t * & compressedMemoryRegion8) 
+            const uint8_t * uncompressedMemoryRegion8,
+            size_t countInLog,
+            uint8_t * compressedMemoryRegion8) 
     {
       /* The intermediate representation can be printed to the terminal */
 #     if LCTL_VERBOSETREE
@@ -70,7 +71,6 @@ namespace LCTL {
 #     endif
 #     define LCTL_VERBOSECODE LCTL_VERBOSECOMPRESSIONCODE
       uint8_t * compressedMemoryRegion8Start = compressedMemoryRegion8;
-      
       return Generator <
         typename format_t::processingStyle_t,
         typename format_t::transform,

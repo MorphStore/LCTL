@@ -38,9 +38,9 @@ namespace LCTL {
      * @author: Juliana Hildebrandt
      */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t apply(
-      const uint8_t * & compressedMemoryRegion8,
-      const size_t countInLog,
-      uint8_t * & decompressedMemoryRegion8) 
+      const uint8_t * compressedMemoryRegion8,
+      size_t countInLog,
+      uint8_t * decompressedMemoryRegion8) 
     {
       /* 
        * TODO: it is possible to disply somehow the generated code, but you will see
@@ -53,7 +53,7 @@ namespace LCTL {
 #     endif
 #     define LCTL_VERBOSECODE LCTL_VERBOSEDECOMPRESSIONCODE
       uint8_t * decompressedMemoryRegion8Start = decompressedMemoryRegion8;
-      return Generator < 
+      size_t ret = Generator < 
         typename format_t::processingStyle_t,
         typename format_t::transform, 
         typename format_t::base_t, 
@@ -64,6 +64,7 @@ namespace LCTL {
           countInLog, 
           decompressedMemoryRegion8
         ) - decompressedMemoryRegion8Start;
+      return ret;
 #     undef LCTL_VERBOSECODE
     }
   

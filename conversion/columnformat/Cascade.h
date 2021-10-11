@@ -38,28 +38,27 @@ namespace LCTL {
     
     static constexpr size_t lcm_tokensize_t = conversion_t::staticTokensize;
     
-    template<typename firstConversion_t>
-    using pushFront = Cascade<firstConversion_t, conversion_t>; 
-    
     using first_t = conversion_t;
     
+    using decompose = conversion_t;
+    
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphDirectly(
-      const uint8_t * & uncompressedMemoryRegion8,
+      const uint8_t * uncompressedMemoryRegion8,
       size_t countInLog,
-      uint8_t * & compressedMemoryRegion8) 
+      uint8_t * compressedMemoryRegion8) 
     {   
-        std::cout << "address output " << (uint64_t *) compressedMemoryRegion8 << "\n";
         return conversion_t:: apply(uncompressedMemoryRegion8, countInLog, compressedMemoryRegion8);  
     }
     
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphIndirectly(
-      const uint8_t * & uncompressedMemoryRegion8,
+      const uint8_t * uncompressedMemoryRegion8,
       size_t countInLog,
-      uint8_t * & compressedMemoryRegion8) 
-    {       
+      uint8_t * compressedMemoryRegion8) 
+    {    
         return morphDirectly(uncompressedMemoryRegion8, countInLog, compressedMemoryRegion8);  
     }
   };
+  
   
   /**
    * @brief splits the cascade input in blocks of lcm(tokensizes...) values and
@@ -85,10 +84,9 @@ namespace LCTL {
       Cascade<secondConversion_t, conversion_t...>::lcm_tokensize_t
     >::value;
     
-    template<typename frontConversion_t>
-    using pushFront = Cascade<frontConversion_t, firstConversion_t, secondConversion_t, conversion_t...>; 
-    
     using first_t = firstConversion_t;
+    
+    
     
     /**
      * @brief eliminate  ..., Decompress<T>, Compress<T>,... in the cascade
@@ -117,63 +115,53 @@ namespace LCTL {
      * @author: Juliana Hildebrandt
      */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphDirectly(
-        const uint8_t * & sourceMemoryRegion8,
+        const uint8_t * sourceMemoryRegion8,
         size_t countInLog,
-        uint8_t * & targetMemoryRegion8) 
+        uint8_t * targetMemoryRegion8) 
     {
-      const uint8_t * sourceMemoryRegion8IterationFirstConversion = sourceMemoryRegion8;
-      
-      uint8_t * targetMemoryRegion8Start = targetMemoryRegion8;
       
       size_t i = lcm_tokensize_t;
+      size_t sizeSecondSum = 0;
+      
       while(i <= countInLog) {
         
         uint8_t * outputRegionFirstConversion8 = (uint8_t *) malloc(sizeof(typename firstConversion_t::format_t::base_t) * lcm_tokensize_t);
-        uint8_t * outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
-        firstConversion_t::apply(
-          sourceMemoryRegion8IterationFirstConversion,
+        size_t sizeFirst = firstConversion_t::apply(
+          sourceMemoryRegion8 + i - lcm_tokensize_t,
           lcm_tokensize_t,
-          outputRegionFirstConversion8IterationFirstConversion
+          outputRegionFirstConversion8
         );
-        outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
-        Cascade<secondConversion_t, conversion_t...>::morphDirectly(
-                (const uint8_t *&) outputRegionFirstConversion8IterationFirstConversion, 
+        
+        sizeSecondSum += Cascade<secondConversion_t, conversion_t...>::morphDirectly(
+                (const uint8_t *) outputRegionFirstConversion8, 
                 lcm_tokensize_t, 
-                targetMemoryRegion8);
+                targetMemoryRegion8 + sizeSecondSum);
         i += lcm_tokensize_t;
         free(outputRegionFirstConversion8);
       }
-      
-      
-      size_t size = targetMemoryRegion8 - targetMemoryRegion8Start;
-      targetMemoryRegion8 = targetMemoryRegion8Start;
-      return size;
+      return sizeSecondSum;
     }
   
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t morphIndirectly(
-        const uint8_t * & uncompressedMemoryRegion8,
-        size_t countInLog,
-        uint8_t * & compressedMemoryRegion8) 
+      const uint8_t * uncompressedMemoryRegion8,
+      size_t countInLog,
+      uint8_t * compressedMemoryRegion8) 
     {
-      uint8_t * outputRegionFirstConversion8 = (uint8_t *) malloc(sizeof(typename firstConversion_t::format_t::base_t) * 2);
-      uint8_t * outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
-      uint8_t * compressedMemoryRegion8Start = compressedMemoryRegion8;
+        uint8_t * outputRegionFirstConversion8 = (uint8_t *) malloc(sizeof(typename firstConversion_t::format_t::base_t) * 2 * countInLog);
       
-      firstConversion_t::apply(
+        size_t sizeFirst = firstConversion_t::apply(
           uncompressedMemoryRegion8,
           countInLog,
-          outputRegionFirstConversion8IterationFirstConversion
+          outputRegionFirstConversion8
         );
-        outputRegionFirstConversion8IterationFirstConversion = outputRegionFirstConversion8;
-        Cascade<secondConversion_t, conversion_t...>::morphIndirectly(
-                outputRegionFirstConversion8IterationFirstConversion, 
+        
+        size_t sizeSecond = Cascade<secondConversion_t, conversion_t...>::morphIndirectly(
+                (const uint8_t * ) outputRegionFirstConversion8, 
                 countInLog, 
                 compressedMemoryRegion8);
-      free(outputRegionFirstConversion8);
+        free(outputRegionFirstConversion8);
       
-      size_t size = compressedMemoryRegion8 - compressedMemoryRegion8Start;
-      compressedMemoryRegion8 = compressedMemoryRegion8Start;
-      return size;
+      return sizeSecond;
     }
   };
 }
