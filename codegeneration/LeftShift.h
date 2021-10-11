@@ -20,7 +20,7 @@ namespace LCTL {
    * @tparam processingStyle_t     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @tparam inbase_t              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
    * @tparam bits                 number of bits to shift the input to the left
-   * @tparam dorOrDont>            shall we write the input to the output? - Here no.
+   * @tparam dorOrDont            shall we write the input to the output? - Here no.
    * @tparam logicalencoding_t    logical preprocessing of the input values before writing it to the output
    * @tparam isMasked             do we have to use a mask for the bitsize_t bits belonging to the logical input value?
    * isMasked == true is used for leftshifts during decompression
@@ -33,7 +33,6 @@ namespace LCTL {
     class processingStyle_t, 
     typename inbase_t, 
     size_t bits,
-    /* evaluation if it shall happen -> not needed at the moment*/   
     bool doOrDont, 
     typename logicalencoding_t,
     bool isMasked,
