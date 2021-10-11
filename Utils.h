@@ -1,7 +1,3 @@
-//
-// Created by André Berthold
-//
-
 #include <cstdint>
 #include <cstddef>
 #include <cstdlib>
@@ -352,8 +348,4 @@ namespace LCTL {
     return;
   }
 }
-
-
-
-
 #endif /* UTILS_H */
