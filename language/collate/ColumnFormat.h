@@ -5,8 +5,8 @@
  * Created on 12. Dezember 2020, 13:22
  */
 
-#ifndef LCTL_LANGUAGE_COLLATE_FORMAT_H
-#define LCTL_LANGUAGE_COLLATE_FORMAT_H
+#ifndef LCTL_LANGUAGE_COLUMN_FORMAT_H
+#define LCTL_LANGUAGE_COLUMN_FORMAT_H
 
 #include <cstdint>
 #include <cxxabi.h>
@@ -14,6 +14,7 @@
 #include "Concepts.h"
 #include "../../transformations/intermediate/Analyzer.h"
 #include <type_traits>
+#include "../Delta.h"
 
 
 namespace LCTL {
@@ -25,16 +26,17 @@ namespace LCTL {
    * is defined at least by an input datatype (TODO: or 
    * ProcessingStyle) and a recursion defining the overal format structure 
    * 
-   * @param <processingStyle>   datatype to handle the memory region of compressed and decompressed values
-   * @param <recursion_t>       the recursion describing the highest level of blocks
-   * @param <inputbase_t>       datatype of input column
+   * @tparam processingStyle   datatype to handle the memory region of compressed and decompressed values
+   * @tparam recursion_t       the recursion describing the highest level of blocks
+   * @tparam inputbase_t       datatype of input column
+   * @tparam is
    * expecially for scalar case, it might be useful to use another base datatype for processing (processingStyle::base_t).
    * In vectorized cases, this might not make any sense.
    * 
    * @date: 25.05.2021 12:00
    * @author: Juliana Hildebrandt
    */
-  template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL >
+  template < typename processingStyle, typename recursion_t, typename inputbase_t = NIL, Delta delta_t = notDeltaEncoded>
   struct ColumnFormat {
 /*static const size_t s = sizeof(typename std::conditional<
               ( std::is_same<inputbase_t,NIL>::value),
@@ -64,8 +66,8 @@ namespace LCTL {
      * It evolves the control flow, which is similar for compression and decompression
      * and thus can be used to generate the compression as well as the decompression code
      */
-    using transform = typename Analyzer < ColumnFormat <base_t, recursion_t, compressedbase_t >> ::transform;
-    
+    using transform = typename Analyzer < ColumnFormat <processingStyle, recursion_t, compressedbase_t, delta_t >> ::transform;
+     
   }; // struct Format
 } // LCTL
-#endif /* LCTL_LANGUAGE_COLLATE_FORMAT_H */
+#endif /* LCTL_LANGUAGE_COLUMN_FORMAT_H */
