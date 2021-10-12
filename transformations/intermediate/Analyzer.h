@@ -14,7 +14,6 @@
 #include "./LoopAnalyzer.h"
 #include <header/vector_extension_structs.h>
 #include <header/vector_primitives.h>
-#include "../../language/Delta.h"
 
 template<typename... Ts>
 struct List;
@@ -23,7 +22,7 @@ namespace LCTL {
   
   /* forward declaration */
     template <
-    typename base_t, 
+    typename processingStyle, 
     int level, 
     typename loop_t, 
     typename combinerList_t, 
@@ -32,10 +31,29 @@ namespace LCTL {
     typename runtimeparameternames_t
   >
   struct LoopAnalyzer;
-    
+  
+  /**
+   * @brief InitializeAdaptiveParameters is an processing inset to declare and
+   *        initialize adaptive parameters before a loop inside which it is updated,
+   *        Primary template leads to an error
+   * 
+   * @tparam parameterCalculator_t  ParameterCalculator with remaining parameters
+   * @tparam processingStyle        TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam level                  recursion level
+   * @tparam loop_t                 loop which contains the parameterCalculator_t
+   * @tparam combinerlist_t         list of collected combiners (combiner in loop_t not contained here), outer combiners first (inner combiners are pushed back)
+   * @tparam valuelist_t            list of known values (tuples of name string, loop level, logical value as Int<...> and number of bits)
+   *                                and unknown values (tuples of name string, loop level, logical value as term and number of bits) 
+   * @tparam outertokenizer_t       String<decltype("length"_tstr)> for the toplevel (means, that a token of all values has to be considered), 
+   *                                for next recursion depth, this is the tokensize of the toplevel tokenizer 
+   * @tparam runtimeparameters_t    all runtime parameters which are known at this point (tuples of name string, loop level, logical value as term and number of bits)
+   * 
+   * @date: 12.10.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
   template<
     typename parameterCalculator_t, 
-    typename base_t, 
+    typename processingStyle, 
     int level, 
     typename loop_t,
     typename combinerlist_t,
@@ -47,11 +65,30 @@ namespace LCTL {
       using transform = FAILURE_ID<12345>;
   };
 
-  /* next parameter is not adaptive */
+  /**
+   * @brief InitializeAdaptiveParameters is an processing inset to declare and
+   *        initialize adaptive parameters before a loop inside which it is updated,
+   *        case that next parameter is not adaptive -> skip
+   * 
+   * @tparam padfirst_t             next parameter
+   * @tparam pads                   following parameters
+   * @tparam processingStyle        TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam level                  recursion level
+   * @tparam loop_t                 loop which contains the parameterCalculator_t
+   * @tparam combinerList_t         list of collected combiners (combiner in loop_t not contained here), outer combiners first (inner combiners are pushed back)
+   * @tparam valuelist_t            list of known values (tuples of name string, loop level, logical value as Int<...> and number of bits)
+   *                                and unknown values (tuples of name string, loop level, logical value as term and number of bits) 
+   * @tparam outertokenizer_t       String<decltype("length"_tstr)> for the toplevel (means, that a token of all values has to be considered), 
+   *                                for next recursion depth, this is the tokensize of the toplevel tokenizer 
+   * @tparam runtimeparameters_t    all runtime parameters which are known at this point (tuples of name string, loop level, logical value as term and number of bits)
+   * 
+   * @date: 12.10.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
   template<
     typename padfirst_t,
     typename... pads,
-    typename base_t,
+    typename processingStyle,
     int level, 
     typename... combinerList_t,
     typename... valueList_t,
@@ -61,7 +98,7 @@ namespace LCTL {
   >
   struct InitializeAdaptiveParameters<
     ParameterCalculator<padfirst_t, pads...>,
-    base_t, 
+    processingStyle, 
     level, 
     loop_t, 
     List<combinerList_t...>, 
@@ -71,7 +108,7 @@ namespace LCTL {
   >{
       using transform = typename InitializeAdaptiveParameters<
         ParameterCalculator<pads...>,
-        base_t, 
+        processingStyle, 
         level, 
         loop_t,
         List<combinerList_t...>, 
@@ -80,9 +117,34 @@ namespace LCTL {
         runtimeparameternames_t
       >::transform;
   };
-  /* next parameter is adaptive */
+
+  /**
+   * @brief InitializeAdaptiveParameters is an processing inset to declare and
+   *        initialize adaptive parameters before a loop inside which it is updated,
+   *        case that next parameter is adaptive
+   * 
+   * @tparam pads                   parameters after the first adaptive one
+   * @tparam processingStyle        TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam level                  recursion level
+   * @tparam loop_t                 loop which contains the parameterCalculator_t
+   * @tparam combinerList_t         list of collected combiners (combiner in loop_t not contained here), outer combiners first (inner combiners are pushed back)
+   * @tparam valuelist_t            list of known values (tuples of name string, loop level, logical value as Int<...> and number of bits)
+   *                                and unknown values (tuples of name string, loop level, logical value as term and number of bits) 
+   * @tparam outertokenizer_t       String<decltype("length"_tstr)> for the toplevel (means, that a token of all values has to be considered), 
+   *                                for next recursion depth, this is the tokensize of the toplevel tokenizer 
+   * @tparam runtimeparameternames_t    all runtime parameters which are known at this point (tuples of name string, loop level, logical value as term and number of bits)
+   * @tparam name_t                 name of the parameter
+   * @tparam logicalValue_t         logical preprocessing term for the adaptive parameter
+   * @tparam numberOfBits_t         bitsize for encoding of the adaptive parameter
+   * @tparam startValue_t           initial value of the adaptive parameter
+   * @tparam levelOfInitializing    level at which the adaptive parameter shal be initialized again -> should be deleted
+   * @tparam loop_t                 loop to which the parametercalculator belongs
+   * 
+   * @date: 12.10.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
   template<
-    typename base_t,
+    typename processingStyle,
     int level, 
     typename... pads,
     typename... combinerList_t,
@@ -105,11 +167,11 @@ namespace LCTL {
           numberOfBits_t
         >, 
         startvalue_t, 
-        levelOfInitializing
+        levelOfInitializing // should be deleted
       >, 
       pads...
     >,
-    base_t, 
+    processingStyle, 
     level, 
     loop_t, 
     List<combinerList_t...>, 
@@ -123,7 +185,7 @@ namespace LCTL {
         numberOfBits_t,
         typename InitializeAdaptiveParameters<
           ParameterCalculator<pads...>,
-          base_t, 
+          processingStyle, 
           level, 
           loop_t, 
           List<combinerList_t...>, 
@@ -131,7 +193,7 @@ namespace LCTL {
             std::tuple<
               name_t, 
               Value<size_t, level>, 
-              name_t,//NIL, // not the start value, because this leads to a replacement in calculations with the start value
+              name_t, // not the start value, because this leads to a replacement in calculations with the start value
               numberOfBits_t
             >,
             valueList_t...
@@ -145,9 +207,26 @@ namespace LCTL {
       >;
   };
 
-  /* no next parameter */
+  /**
+   * @brief InitializeAdaptiveParameters is an processing inset to declare and
+   *        initialize adaptive parameters before a loop inside which it is updated,
+   *        case that there is no next parameter -> return to LoopAnalyzer
+   * 
+   * @tparam processingStyle        TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam level                  recursion level
+   * @tparam loop_t                 loop which contains the parameterCalculator_t
+   * @tparam combinerList_t         list of collected combiners (combiner in loop_t not contained here), outer combiners first (inner combiners are pushed back)
+   * @tparam valuelist_t            list of known values (tuples of name string, loop level, logical value as Int<...> and number of bits)
+   *                                and unknown values (tuples of name string, loop level, logical value as term and number of bits) 
+   * @tparam outertokenizer_t       String<decltype("length"_tstr)> for the toplevel (means, that a token of all values has to be considered), 
+   *                                for next recursion depth, this is the tokensize of the toplevel tokenizer 
+   * @tparam runtimeparameternames_t    all runtime parameters which are known at this point (tuples of name string, loop level, logical value as term and number of bits)
+   * 
+   * @date: 12.10.2021 12:00
+   * @author: Juliana Hildebrandt
+   */
   template<
-    typename base_t,
+    typename processingStyle,
     int level, 
     typename... combinerList_t,
     typename... valueList_t,
@@ -157,7 +236,7 @@ namespace LCTL {
   >
   struct InitializeAdaptiveParameters<
     ParameterCalculator<>,
-    base_t, 
+    processingStyle, 
     level, 
     loop_t, 
     List<combinerList_t...>, 
@@ -166,7 +245,7 @@ namespace LCTL {
     runtimeparameternames_t
   >{
       using transform = typename LoopAnalyzer<
-          base_t, 
+          processingStyle, 
           level, 
           loop_t, 
           List<combinerList_t...>, 
@@ -176,82 +255,12 @@ namespace LCTL {
         >::transform;
   };
     
-  /**
-   * @brief creates the intermediate tree. 
-   * @TODO Comment is old and has to be rewritten
-   * 
-   * @tparam base_t           datatype of uncompressed and decompressed values
-   * @tparam loop_t      outer loop
-   * @tparam compressedbase_t datatype to handle the compressed memory region
-   * 
-   *  Input for the Analyzer is a Collate-model template tree. 
-   *  Output is a tree loosely corresponding to the control flow of
-   *  the compression/decompression code:
-   *  
-   *  (1) transform attribute:
-   *  There is  one level for each tokensize/parameter.
-   *  If a parameter can evaluate to a small finite set of values,
-   *  a tree node has more than one successor.
-   *  Simplified Example for  BP32:
-   * 
-   *  loop, size = 0/32
-   *  |- tokensize = 32, not encodable
-   *     |- minimum = unknown, encodable with 32 bits
-   *        |- bit width = unknown, encodable with 32 bits (here, we implement something like a switch case, because we know all cases of bitwidhts)
-   *           |- bitwidth = 0, encodable with 32 bits
-   *              |- loop, size = 64/0
-   *                 |- tokensize = 1, not encodable
-   *           |- bitwidth = 1, encodable with 32 bits
-   *              |- loop, size = 96/0
-   *                 |- tokensize = 1, not encodable
-   *           ...
-   *           |- bitwidth = 32, encodable with 32 bits
-   *              |- loop, size = 1088/0
-   *                 |- tokensize = 1, not encodable
-   * 
-   * Simplified example for Bitpacking with bitwidth 10:
-   * 
-   *  loop, size = 10/0
-   *  |- tokensize = 1
-   * 
-   * Simplified example for VarintSU
-   * 
-   * loop, size = 0/8
-   * |- tokensize = 1
-   *    |- units = unknown
-   *       |- units = 1
-   *       |- units = 2
-   *       |- units = 3
-   *       |- units = 4
-   *       |- units = 5
-   * 
-   * (2) size-attribute
-   * corresponds to a loop. Determines the size of a block defined in
-   * a combiner (and the encoding functions in parameter definitions and
-   * encders as well as the number of values defined in the tokenzer).
-   * The size can be a fix value (i.e. 32 Bits, represented as 32/0)
-   * or a multiple of a bitwidth(i.e. 0/32 for a multiple of 32)
-   * 
-   * (3) Control flow
-   * (3.1) If the size of the outer loop is not a multiple of the base datatype  and fix,
-   * a cycle calculation has to be done TODO
-   * (3.2) If the size of the outer loop is not a multiple of 8/16/...  and fix,
-   * the out-pointer has to be casted and a cycle calculation has to be done TODO => catched by an optional outbase datatype
-   * (3.3) If the size of the outer loop is not a multiple of the base datatype and variable,
-   * the loop can not be enrolled
-   * (3.4) If the size of the outer loop is not a multiple of 8/16/... and variable,
-   * the loop can not be enrolled
-   * (3.5) If the size of the outer loop is a multiple of the base datatype,
-   * the loop can be enrolled
-   * (3.6) If the size of the outer loop is a multiple of 8/16/...,
-   * the loop can be enrolled
-   * 
-   * @date: 26.05.2021 12:00
-   * @author: Juliana Hildebrandt
+  /* Forward Declaration 
+   * @tparam processingStyle   TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam loop_t            the recursion describing the highest level of blocks
+   * @tparam inputbase_t       datatype of input column
    */
-    
-  /* Forward Declaration */
-  template<typename base_t, class loop_t, typename compressedbase_t, Delta delta_t>
+  template<typename processingStyle, class loop_t, typename inputbase_t>
   struct ColumnFormat;
     
   /**
@@ -270,43 +279,41 @@ namespace LCTL {
    * @brief The node is a root node (Format). The first thing we do is to initialize all adaptive parameters.
    * Because they shall not be deleted in each loop pass.
    * 
-   * @tparam base_t      input data type
-   * @tparam tokenizer_t outer tokenizer
-   * @tparam pads...     parameter defintitions
-   * @tparam loop_t inner loop or encoder
-   * @tparam combiner_t  outer combiner
-   * @tparam baseout_t   data type to handle the memory region for the compressed data
+   * @tparam processingStyle    TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam tokenizer_t        outer tokenizer
+   * @tparam pads...            parameter defintitions
+   * @tparam loop_t             inner loop or encoder
+   * @tparam combiner_t         outer combiner
+   * @tparam inputbase_t        input datatype
    * 
    * @date: 26.05.2021 12:00
    * @author: Juliana Hildebrandt
    */
   template <
-    typename base_t, 
+    typename processingStyle, 
     class tokenizer_t, 
     class... pads, 
     class loop_t, 
     class combiner_t, 
-    typename baseout_t,
-    Delta delta_t
+    typename inputbase_t
   >
   struct Analyzer<
     ColumnFormat<
-      base_t, 
+      processingStyle, 
       Loop<
         tokenizer_t, 
         ParameterCalculator<pads...>,  
         loop_t, 
         combiner_t
       >, 
-      baseout_t,
-      delta_t
+      inputbase_t // not neccessarily propagated down, this is done in the Generator step
     >
   >{
       using transform = ColumnFormatIR<
         typename InitializeAdaptiveParameters<
           ParameterCalculator<pads...>,
-          /* input datatype */
-          base_t,
+          /* TVL Processing Style*/
+          processingStyle,
           /* loop level */
           (size_t) 0,
           /* loop */
@@ -318,10 +325,9 @@ namespace LCTL {
           List<>,
           /* overall inputsize */
           String<decltype("length"_tstr)>,
-          /* input length is the first runtme parameter */
+          /* input length is the first runtime parameter */
           List<String<decltype("length"_tstr)>>
-        >::transform,
-        delta_t
+        >::transform
       >;
   };
 }
