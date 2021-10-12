@@ -8,8 +8,6 @@
 #ifndef LCTL_INTERMEDIATE_PROCEDURE_CONCEPTS_H
 #define LCTL_INTERMEDIATE_PROCEDURE_CONCEPTS_H
 
-#include "../../language/Delta.h"
-
 namespace LCTL {
   /**
    * @brief StaticTokenizer (with fix tokensize) in the collate model
@@ -136,7 +134,7 @@ namespace LCTL {
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
    */
-  template<typename node_t, Delta delta_t>  
+  template<typename node_t>  
   struct ColumnFormatIR{};
 
   /* In the following: New Node Types for the Analyze layer*/

@@ -350,77 +350,6 @@ namespace LCTL {
       
       return;
     }
-    /**
-     * @brief (1) shift and assemble logically preprocessed value and write it
-     * to the output, (2) reverse preprocessing and write the original value to
-     * the output (overwrite), (3) compare value with the given operator op with the value 
-     * val and overwrite the output - if passed - with the current position,
-     * special treatment for delta encoding
-     * 
-     * @param sourceMemoryRegion8
-     * @param tokensize
-     * @param val
-     * @param selectedPositions
-     * @param currentPosition
-     * @param parameters
-     */
-    template<template<typename> class op, bool outputIsDeltaencoded, typename... parameter_t>
-    MSV_CXX_ATTRIBUTE_FORCE_INLINE static void select(
-            const uint8_t * & sourceMemoryRegion8, 
-            const size_t tokensize, 
-            base_t val,
-            uint64_t * & selectedPositions,
-            uint64_t currentPosition,
-            uint64_t * lastPosition,
-            std::tuple<parameter_t...> parameters) 
-     {
-#       if LCTL_VERBOSECALLGRAPH
-          std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
-          std::cout << "\tWrite<class processingStyle_t,base_t,bitposition_t,bitwidth_t,logicalencoding_t,tokensize_t>::select(...)\n";
-#       endif
-          
-        base_t assembledValue = 0;
-        
-        RightShift<
-          processingStyle_t, 
-          base_t,
-          /* number of bits to shift to the right */
-          bitposition_t % (sizeof(compressedbase_t)*8),
-          /* do or don't */  
-          true,
-          Token,
-          /* mask needed for the case not the whole input word has to be encoded -> yes, but not iff the masksize is as big as sizeof(base_t)*/
-          bitwidth_t % (sizeof(compressedbase_t)*8) && (bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),//(bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),
-          /* number of bits that belong to the inputvalue -> bit mask if needed */
-          bitwidth_t
-        >::decompress(sourceMemoryRegion8, &assembledValue, tokensize, parameters);
-        
-        IncrAndWriteSpan<
-          processingStyle_t, 
-          base_t, 
-          bitposition_t, 
-          bitwidth_t, 
-          Token, 
-          tokensize_t,
-          sizeof(base_t)/sizeof(compressedbase_t) + 1
-        >::decompress(sourceMemoryRegion8, &assembledValue, tokensize, parameters);
-        
-        base_t decodedValue = logicalencoding_t::inverse::apply(&assembledValue, tokensize, parameters);
-        
-        if (op<base_t>(*assembledValue, val)) {
-        if (outputIsDeltaencoded == false)
-          // if positions are not deltaencoded, write current position
-          * selectedPositions = currentPosition;
-        else {
-          // if positions are deltaencoded
-          * selectedPositions = currentPosition - *lastPosition;
-          * lastPosition = currentPosition;
-        }
-        selectedPositions++;
-      }
-        
-        return;
-    }
     
   };
 
@@ -522,58 +451,6 @@ namespace LCTL {
       return;
     }
     
-    template<template<typename> class op, bool outputIsDeltaencoded, typename... parameter_t>
-    MSV_CXX_ATTRIBUTE_FORCE_INLINE static void select(
-            const uint8_t * & sourceMemoryRegion8, 
-            const size_t tokensize, 
-            base_t val,
-            uint64_t * & selectedPositions,
-            uint64_t currentPosition,
-            uint64_t * lastPosition,
-            std::tuple<parameter_t...> parameters) 
-     {
-      
-      base_t assembledValue = 0;
-      
-      /* Write Bitstring to the output, rightshifted */
-      RightShift<
-        processingStyle_t, 
-        base_t,
-        /* number of bits to shift to the right */
-        bitposition_t % (sizeof(compressedbase_t)*8),
-        /* do or don't */  
-        true,
-        Token,
-        /* mask needed for the case not the whole input word has to be encoded -> yes, but not iff the masksize is as big as sizeof(base_t)*/
-        bitwidth_t % (sizeof(compressedbase_t)*8) && (bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),//(bitwidth_t + bitposition_t < sizeof(compressedbase_t)*8),
-        /* number of bits that belong to the inputvalue -> bit mask if needed */
-        bitwidth_t
-      >::decompress(sourceMemoryRegion8, &assembledValue, tokensize, parameters);
-      
-      IncrAndWriteSpan<
-        processingStyle_t, 
-        base_t, 
-        bitposition_t, 
-        bitwidth_t, 
-        Token, 
-        tokensize_t,
-        sizeof(base_t)/sizeof(compressedbase_t) + 1
-      >::decompress(sourceMemoryRegion8, &assembledValue, tokensize, parameters);
-      
-      if (op<base_t>(*assembledValue, val)) {
-        if (outputIsDeltaencoded == false)
-          // if positions are not deltaencoded, write current position
-          * selectedPositions = currentPosition;
-        else {
-          // if positions are deltaencoded
-          * selectedPositions = currentPosition - * lastPosition;
-          * lastPosition = currentPosition;
-        }
-        selectedPositions++;
-      }
-      
-      return;
-    }
   };
 
 
