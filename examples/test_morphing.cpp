@@ -76,34 +76,26 @@ struct testcaseCorrectness {
   {
     testInfo<base_t, compressedbase_t, upper_t, countInLog_t, name_t>::print();
     base_t * in = dataGenerator<base_t, lower_t, upper_t, countInLog_t, isSorted_t>::create();
-    base_t * inCurrent = in;
     
     /* memory region to store compressed values */
     compressedbase_t * sourceCompressedMemoryRegion = (compressedbase_t * ) malloc(countInLog_t * sizeof(base_t) * 2);
-    compressedbase_t * sourceCompressedMemoryRegionCurrent = sourceCompressedMemoryRegion;
     /* memory region to store indirectly morphed values */
     base_t * targetCompressedMemoryRegionIndirect = (base_t * ) malloc(countInLog_t * sizeof(base_t) * 2);
-    base_t * targetCompressedMemoryRegionCurrentIndirect = targetCompressedMemoryRegionIndirect;
     /* memory region to store directly morphed values */
     base_t * targetCompressedMemoryRegionDirect = (base_t * ) malloc(countInLog_t * sizeof(base_t) * 2);
-    base_t * targetCompressedMemoryRegionCurrentDirect = targetCompressedMemoryRegionDirect;
     /* memory region to store decompressed values */
     base_t * decompressedMemoryRegionDirect = (base_t * ) malloc(countInLog_t * sizeof(base_t) * 2);
-    base_t * decompressedMemoryRegionCurrentDirect = decompressedMemoryRegionDirect;
     base_t * decompressedMemoryRegionIndirect = (base_t * ) malloc(countInLog_t * sizeof(base_t) * 2);
-    base_t * decompressedMemoryRegionCurrentIndirect = decompressedMemoryRegionIndirect;
 
     struct timespec beginIndirectMorphing, endIndirectMorphing, beginDirectMorphing, endDirectMorphing; 
     
     
     /* Setup: compress data in first format */
     size_t sizeCompressedInBytes = Compress<decformat_t>::apply(
-      ( const uint8_t * & ) (inCurrent),
+      ( const uint8_t * ) (in),
       countInLog_t,
-      ( uint8_t * & ) (sourceCompressedMemoryRegionCurrent)
+      sourceCompressedMemoryRegion
     );
-    sourceCompressedMemoryRegionCurrent = sourceCompressedMemoryRegion;
-    inCurrent = in;
     
     /* indirect morphing */
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &beginIndirectMorphing);
@@ -111,27 +103,23 @@ struct testcaseCorrectness {
              Decompress<decformat_t>,
              Compress<compformat_t>
           >::morphIndirectly(
-             (const uint8_t * & ) (sourceCompressedMemoryRegionCurrent), 
+             ( const uint8_t * ) (sourceCompressedMemoryRegion), 
              countInLog_t, 
-             ( uint8_t * & ) (targetCompressedMemoryRegionCurrentIndirect));
+             targetCompressedMemoryRegionIndirect
+             );
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endIndirectMorphing);
-    
-    sourceCompressedMemoryRegionCurrent = sourceCompressedMemoryRegion;
-    targetCompressedMemoryRegionCurrentIndirect = targetCompressedMemoryRegionIndirect;
-    
     /* direct morphing */
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &beginDirectMorphing);
      size_t sizeMorphingInBytesDirect = Cascade<
              Decompress<decformat_t>,
              Compress<compformat_t>
           >::morphDirectly(
-             ( const uint8_t * & ) (sourceCompressedMemoryRegionCurrent), 
+             ( const uint8_t * ) (sourceCompressedMemoryRegion), 
              countInLog_t, 
-             ( uint8_t * & ) (targetCompressedMemoryRegionCurrentDirect));
+             targetCompressedMemoryRegionDirect
+             );
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endDirectMorphing);
     
-    sourceCompressedMemoryRegionCurrent = sourceCompressedMemoryRegion;
-    targetCompressedMemoryRegionCurrentDirect = targetCompressedMemoryRegionDirect;
     
     long secondsIndirectMorphing = endIndirectMorphing.tv_sec - beginIndirectMorphing.tv_sec;
     long nanosecondsIndirectMorphing = endIndirectMorphing.tv_nsec - beginIndirectMorphing.tv_nsec;
@@ -157,11 +145,10 @@ struct testcaseCorrectness {
     if (!passed) std::cout << "\t\033[31m*** FAIL (Sizes) ***\033[0m\n"; 
     
     /* 2. test: are decompression of the indirect morphing result and the uncompresed data equal? */
-    size_t sizeDecompressedInBytesIndirect = Decompress<compformat_t>::apply(( const uint8_t * & ) (targetCompressedMemoryRegionCurrentIndirect), countInLog_t, ( uint8_t * & ) (decompressedMemoryRegionCurrentIndirect));
-    decompressedMemoryRegionCurrentIndirect = decompressedMemoryRegionIndirect;
+    size_t sizeDecompressedInBytesIndirect = Decompress<compformat_t>::apply(( const uint8_t * ) (targetCompressedMemoryRegionIndirect), countInLog_t, ( uint8_t * ) (decompressedMemoryRegionIndirect));
     
     for (int i = 0; i < sizeDecompressedInBytesIndirect; i++) {
-      passed = passed && ((( uint8_t *) (decompressedMemoryRegionCurrentIndirect))[i] == (( uint8_t *) (inCurrent))[i]);
+      passed = passed && ((( uint8_t *) (decompressedMemoryRegionIndirect))[i] == (( uint8_t *) (in))[i]);
       /*if test failed, stop here and print differences red, break*/
       if (!passed) {
         std::cout << "\t\033[31m*** FAIL (Indirect Morphing Result) ***\033[0m\n";
@@ -175,13 +162,12 @@ struct testcaseCorrectness {
     
     /* 3. test: are decompression of the direct morphing result and the uncompresed data equal? */
     size_t sizeDecompressedInBytesDirect = Decompress<compformat_t>::apply(
-      ( const uint8_t * & ) (targetCompressedMemoryRegionCurrentDirect), 
+      ( const uint8_t * ) (targetCompressedMemoryRegionDirect), 
       countInLog_t, 
-      ( uint8_t * & ) (decompressedMemoryRegionCurrentDirect));
-    decompressedMemoryRegionCurrentDirect = decompressedMemoryRegionDirect;
+      ( uint8_t * ) (decompressedMemoryRegionDirect));
     
     for (int i = 0; i < sizeDecompressedInBytesDirect; i++) {
-      passed = passed && ((( uint8_t *) (decompressedMemoryRegionCurrentDirect))[i] == ((uint8_t * ) (inCurrent))[i]);
+      passed = passed && ((( uint8_t *) (decompressedMemoryRegionDirect))[i] == ((uint8_t * ) (in))[i]);
       /*if test failed, stop here and print differences red, break*/
       if (!passed) {
         std::cout << "\t\033[31m*** FAIL (Direct Morphing Result) ***\033[0m\n";
@@ -192,8 +178,8 @@ struct testcaseCorrectness {
 #   if LCTL_VERBOSETEST
       if (passed) std::cout << "\t\033[32m*** MATCH (Direct Morphing Result) ***\033[0m\n";
       else {
-        print_compare(targetCompressedMemoryRegionCurrentIndirect, targetCompressedMemoryRegionCurrentDirect,6, 8);
-        print_compare(decompressedMemoryRegionCurrentIndirect, decompressedMemoryRegionCurrentDirect, countInLog_t, 8);
+        print_compare(targetCompressedMemoryRegionIndirect, targetCompressedMemoryRegionDirect,6, 8);
+        print_compare(decompressedMemoryRegionIndirect, decompressedMemoryRegionDirect, countInLog_t, 8);
       }
 #   endif
     
@@ -214,7 +200,7 @@ int main(int argc, char ** argv) {
   /**
    *  @brief multiple of neccessary amount of data
    */
-  const size_t countInLog = 16381;
+  const size_t countInLog = 1;
 
 
     testcaseCorrectness < 

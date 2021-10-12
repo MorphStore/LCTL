@@ -8,12 +8,14 @@
 #ifndef LCTL_INTERMEDIATE_PROCEDURE_CONCEPTS_H
 #define LCTL_INTERMEDIATE_PROCEDURE_CONCEPTS_H
 
+#include "../../language/Delta.h"
+
 namespace LCTL {
   /**
    * @brief StaticTokenizer (with fix tokensize) in the collate model
    * 
-   * @param<logval_t> blocksize
-   * @param<next_t> next node (parametercalculator)
+   * @tparam logval_t blocksize
+   * @tparam next_t next node (parametercalculator)
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
@@ -25,7 +27,7 @@ namespace LCTL {
    * @brief other tokenizer than StaticTokenizer in the collate model
    * (Tokensize not known at compiletime)
    * 
-   * @param<logcalc_t>  calculation rule for the tokensize
+   * @tparam logcalc_t  calculation rule for the tokensize
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
@@ -53,9 +55,9 @@ namespace LCTL {
   /**
    * @brief Encoder in the inner recursion
    * 
-   * @param<log_t>      calculation rule for logical preprocessing of the token
-   * @param<phys_t>     calculation rule for the encoding (at the moment it contains only the calculation of the used bitwidth)
-   * @param<combiner_t> the corresponding combiner
+   * @tparam log_t      calculation rule for logical preprocessing of the token
+   * @tparam phys_t     calculation rule for the encoding (at the moment it contains only the calculation of the used bitwidth)
+   * @tparam combiner_t the corresponding combiner
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
@@ -69,8 +71,8 @@ namespace LCTL {
   /** 
    * @brief This recursion can not be unrolled. 
    * 
-   * @param<tokenizer_t>  tokenizer in this recursion
-   * @param<combiner_t>   combiner in this recursion
+   * @tparam tokenizer_t  tokenizer in this recursion
+   * @tparam combiner_t   combiner in this recursion
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
@@ -83,10 +85,10 @@ namespace LCTL {
   /**
    * @brief This recursion an be unrolled, because input size is known at compile time and we have a static tokenizer
    * 
-   * @param<inputsize_t>  number of input values is known (Tokenizer of outer recursion is static)
-   * @param<tokenizer_t>  tokenizer of this recursion
-   * @param<combiner_t>   combiner function of recursion
-   * @param<outerCombiner_t> combiner function of super recursion might be needed for code generation at this point 
+   * @tparam inputsize_t  number of input values is known (Tokenizer of outer recursion is static)
+   * @tparam tokenizer_t  tokenizer of this recursion
+   * @tparam combiner_t   combiner function of recursion
+   * @tparam outerCombiner_t combiner function of super recursion might be needed for code generation at this point 
    * 
    * @todo this case is not fully specified. Only tokenizer and combiner available, parametercalculation and encoder are missing
    * 
@@ -104,11 +106,11 @@ namespace LCTL {
    * @brief Easy case. Specialization of unrollabe recursion. Here, additionally to compiletime-known number of input values (static outer tokenizer),
    * we have a static inner tokenizer.
    * 
-   * @param<inputsize_t>  number of values that have to be tokenized
-   * @param<logval_t>     number of values per token
-   * @param<next_t>       next node in intermediate represenation parameterdefinition or encoder/ further recursion
-   * @param<combiner_t>   combiner function of recursion
-   * @param<outerCombiner_t> combiner function of super recursion might be needed for code generation at this point 
+   * @tparam inputsize_t  number of values that have to be tokenized
+   * @tparam logval_t     number of values per token
+   * @tparam next_t       next node in intermediate represenation parameterdefinition or encoder/ further recursion
+   * @tparam combiner_t   combiner function of recursion
+   * @tparam outerCombiner_t combiner function of super recursion might be needed for code generation at this point 
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
@@ -128,13 +130,13 @@ namespace LCTL {
   /**
    * @brief root node of intermediate representation of a format
    * 
-   * @param <processingStyle>   datatype to handle the memory region of compressed and decompressed values
-   * @param<node_t> child node: a recursion (or FAILURE_ID<...>)
+   * @tparam processingStyle   datatype to handle the memory region of compressed and decompressed values
+   * @tparam node_t child node: a recursion (or FAILURE_ID<...)
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
    */
-  template<typename node_t>  
+  template<typename node_t, Delta delta_t>  
   struct ColumnFormatIR{};
 
   /* In the following: New Node Types for the Analyze layer*/
@@ -142,11 +144,11 @@ namespace LCTL {
   /**
    * @brief This (parameter) value is known at compile time (logical representation as well as number of bits for encoding)
    * 
-   * @param<base_t>       value type
-   * @param<name_t>       value name
-   * @param<logicalvalue> the value itself
-   * @param<numberOfBits_t> number of bits for encoding
-   * @param<next_t>       child node in intermediate representation
+   * @tparam base_t       value type
+   * @tparam name_t       value name
+   * @tparam logicalvalue the value itself
+   * @tparam numberOfBits_t number of bits for encoding
+   * @tparam next_t       child node in intermediate representation
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt
@@ -165,10 +167,10 @@ namespace LCTL {
   /**
    * @brief This (parameter value is only known at runtime, not at compile time.
    * 
-   * @param<name_t>          value name
-   * @param<logicalValue_t>  calculation rule for the logical representation
-   * @param<numberOfBits_t>  calculation rule for the number of bits for encoding
-   * @param<next_t>       child node in intermediate representation
+   * @tparam name_t          value name
+   * @tparam logicalValue_t  calculation rule for the logical representation
+   * @tparam numberOfBits_t  calculation rule for the number of bits for encoding
+   * @tparam next_t       child node in intermediate representation
    * 
    * @date: 02.06.2021 12:00
    * @author: Juliana Hildebrandt

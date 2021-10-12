@@ -45,6 +45,35 @@ namespace LCTL {
           return *inBase;
       };
     };
+    
+    /**
+     * @brief Access the Ith element of a token
+     */
+    
+    template<size_t I>
+    struct TokenValue{
+      /**
+       * @brief For decompression, all parameters and encodings that have to be calculated with the inverse mathematical function.
+       * (Exceptions are aggregations, which are mostly somehow encoded  in the compressed data.) 
+       * Inverse is a recursive invertation of the mathematical function. In the
+       * case of "TokenVal<I>", nothing has to be inversed.
+       * 
+       * @date: 31.05.2021 12:00
+       * @author: Juliana Hildebrandt
+       */
+      using inverse = TokenValue<I>;
+      template<typename base_t, typename... parameternames_t>
+      MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t apply(
+        const base_t * & inBase, 
+        size_t tokensize, 
+        std::tuple<parameternames_t...> parameter)
+      {
+  #       if LCTL_VERBOSECODE
+            std::cout << (uint64_t) *(inBase + I);
+  #       endif
+          return *(inBase + I);
+      };
+    };
 
     /**
      * @brief Dummy leaf node in all trees
@@ -57,8 +86,8 @@ namespace LCTL {
     /**
      * @brief A Value is a compiletime constant. It consists of a datatype and a value.
      * 
-     * @param<T>      datatype of the values
-     * @param<value>  value itself
+     * @tparam T      datatype of the values
+     * @tparam value  value itself
      * 
      * @date: 31.05.2021 12:00
      * @author: Juliana Hildebrandt
@@ -99,7 +128,7 @@ namespace LCTL {
        * subtract Value<uint32_t, 5> from input value is ok and the function above is used, add Value<uint32_t, 5>
        * to uint64_t output wouldn't be ok. In this cases, this function is used.
        * 
-       * @param<U> datatype for uncompressed values (processingStyle::base_t)
+       * @tparam U datatype for uncompressed values (processingStyle::base_t)
        * 
        * @date: 31.05.2021 12:00
        * @author: Juliana Hildebrandt
@@ -123,7 +152,7 @@ namespace LCTL {
   /**
    * @brief Integer Value
    * 
-   * @param<I> value of the integer
+   * @tparam I value of the integer
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -135,7 +164,7 @@ namespace LCTL {
    * @brief Dummy leaf node for tree transformation debugging. 
    * It is used to find transformation steps that do not work correctly.
    * 
-   * @param<I> Failure identifier
+   * @tparam I Failure identifier
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -145,7 +174,7 @@ namespace LCTL {
   /**
    * @brief Value with datatype size_t. Used i.e. for bitwidths
    * 
-   * @param<S> value of size_t
+   * @tparam S value of size_t
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -156,7 +185,7 @@ namespace LCTL {
   /**
    * @brief Value with datatype bool. At the moment it is not used at all.
    * 
-   * @param<S> value of bool
+   * @tparam S value of bool
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -167,7 +196,7 @@ namespace LCTL {
   /**
    * @brief Unsigned 8-Bit integer
    * 
-   * @param<I> value of unsigned 8-Bit integer
+   * @tparam I value of unsigned 8-Bit integer
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -178,7 +207,7 @@ namespace LCTL {
    * 
    * @brief Unsigned 16-Bit integer
    * 
-   * @param<I> value of unsigned 16-Bit integer
+   * @tparam I value of unsigned 16-Bit integer
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -189,7 +218,7 @@ namespace LCTL {
   /**
    * @brief Unsigned 32-Bit integer
    * 
-   * @param<I> value of unsigned 32-Bit integer
+   * @tparam I value of unsigned 32-Bit integer
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -200,7 +229,7 @@ namespace LCTL {
   /**
    * @brief Unsigned 64-Bit integer
    * 
-   * @param<I> value of unsigned 64-Bit integer
+   * @tparam I value of unsigned 64-Bit integer
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -216,7 +245,7 @@ namespace LCTL {
   /**
    * @brief tstring is a sequence of chars
    * 
-   * @param<chars...> the characters of the string
+   * @tparam chars... the characters of the string
    * 
    * @date: 31.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -234,7 +263,7 @@ namespace LCTL {
    * https://en.cppreference.com/w/cpp/utility/integer_sequence
    * -> name of the parameter is clear, because it is contained in the template
    * 
-   * @param<chars...> the characters of the string
+   * @tparam chars... the characters of the string
    * 
    * @return tstring containing the name of the parameter in <char...>
    * 

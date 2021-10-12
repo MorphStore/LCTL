@@ -29,7 +29,7 @@ using namespace LCTL;
  * Static FOR with Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
 #define REF_STATFORSTATBP 2
-#define CRITERION_STATFORSTATBP(COMPRESSEDBASE, BASE, BITWIDTH, UPPER) (BASE == 8 && COMPRESSEDBASE == 16 && BITWIDTH == 2)
+#define CRITERION_STATFORSTATBP(COMPRESSEDBASE, BASE, BITWIDTH, UPPER) (BASE == 0 && COMPRESSEDBASE == 16 && BITWIDTH == 2)
 /* 
  * Static FOR with Dynamic Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH for the upper value for the data generator
  * This does not work at the moment
@@ -43,7 +43,7 @@ using namespace LCTL;
  */
 #define LOWER_DYNFORBP 0
 #define SCALE_DYNFORBP 1
-#define CRITERION_DYNFORBP(COMPRESSEDBASE, BASE, UPPER) (BASE >= 0 && BASE <= 0 && COMPRESSEDBASE >= 64 && COMPRESSEDBASE <= 8 && UPPER - LOWER_DYNFORBP >= 0)
+#define CRITERION_DYNFORBP(COMPRESSEDBASE, BASE, UPPER) (BASE >= 8 && BASE <= 8 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <= 8 && UPPER - LOWER_DYNFORBP >= 0)
 
 /* Forward declarations */
 template <typename, typename, uint64_t, size_t, typename>
@@ -105,9 +105,11 @@ template <
   typename format_t 
 >
 struct testcaseCorrectness {
-  /* input data type and output datatype of algorithm */
-  using base_t = typename format_t::base_t;
-  using compressedbase_t = typename format_t::compressedbase_t;
+  
+  using base_t = typename format_t::base_t; /*!< input data type of algorithm */
+  using compressedbase_t = typename format_t::compressedbase_t; ///< Brief description after the member
+  
+  static void apply() 
   /**
    * @brief Generates test data, compresses and decompresses the data while measuring the times, 
    * and validates, if the decompression results in the original test data.
@@ -115,7 +117,6 @@ struct testcaseCorrectness {
    * @date: 25.05.2021 12:00
    * @author: Juliana Hildebrandt
    */
-  static void apply() 
   {
     testInfo<base_t, compressedbase_t, upper_t, countInLog_t, name_t>::print();
     
@@ -8084,18 +8085,4 @@ struct testSizes{
     double elapsed = seconds+ nanoseconds*1e-9;
     return elapsed;
   }
-/*
-template<typename T, T... val>
-void foreach(std::integer_sequence<T, val...> seq)
-{
-    std::initializer_list<int> (
-      { 
-        (  
-            testcaseCorrectness < String < decltype("StaticBP"_tstr) >, 0, (uint64_t) pow(2,val) -1 + (uint64_t) pow(2,val), sizeof(uint8_t) * 8 * 5, false, statbp <scalar<v8<uint8_t>>, val+1 > >::apply(), 0 
-        )...
-      }
-    );
-   
-    std::cout << '\n';
-}*/
 
