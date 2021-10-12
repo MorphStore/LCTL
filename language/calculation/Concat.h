@@ -15,11 +15,7 @@ namespace LCTL {
    template <typename ...T>
     struct Concat{};
     template <>
-    struct Concat<LCTL::Token>{
-        
-    };
-    template <typename T, typename ...Ts>
-    struct Concat<LCTL::List <T,Ts...>>{};
+    struct Concat<LCTL::Token>{};
     
 }
 
