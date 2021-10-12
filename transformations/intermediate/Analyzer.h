@@ -284,7 +284,7 @@ namespace LCTL {
    * @tparam pads...            parameter defintitions
    * @tparam loop_t             inner loop or encoder
    * @tparam combiner_t         outer combiner
-   * @tparam inputbase_t        input datatype
+   * @tparam base_t             input datatype
    * 
    * @date: 26.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -295,7 +295,7 @@ namespace LCTL {
     class... pads, 
     class loop_t, 
     class combiner_t, 
-    typename inputbase_t
+    typename base_t
   >
   struct Analyzer<
     ColumnFormat<
@@ -306,14 +306,14 @@ namespace LCTL {
         loop_t, 
         combiner_t
       >, 
-      inputbase_t // not neccessarily propagated down, this is done in the Generator step
+      base_t
     >
   >{
       using transform = ColumnFormatIR<
         typename InitializeAdaptiveParameters<
           ParameterCalculator<pads...>,
-          /* TVL Processing Style*/
-          processingStyle,
+          /* input datatype*/
+          base_t,
           /* loop level */
           (size_t) 0,
           /* loop */

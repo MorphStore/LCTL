@@ -14,7 +14,6 @@
 #include "Concepts.h"
 #include "../../transformations/intermediate/Analyzer.h"
 #include <type_traits>
-#include "../Delta.h"
 
 
 namespace LCTL {
@@ -26,7 +25,7 @@ namespace LCTL {
    * is defined at least by an input datatype (TODO: or 
    * ProcessingStyle) and a recursion defining the overal format structure 
    * 
-   * @tparam processingStyle   TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam baset   TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @tparam loop_t       the recursion describing the highest level of blocks
    * @tparam inputbase_t       datatype of input column
    *
@@ -61,7 +60,7 @@ namespace LCTL {
      * It evolves the control flow, which is similar for compression and decompression
      * and thus can be used to generate the compression as well as the decompression code
      */
-    using transform = typename Analyzer < ColumnFormat <processingStyle, loop_t, compressedbase_t>> ::transform;
+    using transform = typename Analyzer < ColumnFormat <processingStyle, loop_t, base_t>> ::transform;
      
   }; // struct Format
 } // LCTL

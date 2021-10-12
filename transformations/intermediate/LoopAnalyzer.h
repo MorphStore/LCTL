@@ -55,7 +55,7 @@ namespace LCTL {
    * 
    * @todo to be implemented
    * 
-   * @tparam processingStyle    TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam base_t             input datatype
    * @tparam level              recursion level
    * @tparam tokenizer_t        Stokenizer of the ucrrent loop
    * @tparam parameterCalculator_t parametercalculator of the current loop
@@ -70,7 +70,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template <
-    typename processingStyle, 
+    typename base_t, 
     int level, 
     typename tokenizer_t, 
     typename parameterCalculator_t, 
@@ -82,7 +82,7 @@ namespace LCTL {
     typename runtimeparameternames_t
   >
   struct LoopAnalyzer<
-    processingStyle, 
+    base_t, 
     level,
     /* Loop and its concepts */
     Loop<
@@ -110,7 +110,7 @@ namespace LCTL {
   /**
    * @brief (C) Loop with fix tokensize and an input of unknown length
    * 
-   * @tparam processingStyle    TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam base_t             input datatype
    * @tparam level              recursion level
    * @tparam n                  tokensize of current loo's tokenizer
    * @tparam pads_t             parameters in current parameter calculator
@@ -125,7 +125,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template <
-    typename processingStyle, 
+    typename base_t, 
     int level, 
     size_t n, 
     typename... pads_t,
@@ -193,7 +193,7 @@ namespace LCTL {
   /**
    * @brief (D) inner Loop with known overall input, known tokensize
    * 
-   * @tparam processingStyle    TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
+   * @tparam base_t             input datatype
    * @tparam level              recursion level
    * @tparam n                  tokensize of current loo's tokenizer
    * @tparam pads_t             parameters in current parameter calculator
@@ -209,7 +209,7 @@ namespace LCTL {
    * @author: Juliana Hildebrandt
    */
   template <
-      typename processingStyle, 
+      typename base_t, 
       int level, 
       size_t n, 
       typename... pads_t, 

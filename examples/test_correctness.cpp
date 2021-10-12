@@ -20,11 +20,11 @@ using namespace LCTL;
  * 
  * Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
-#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <=8 && BITWIDTH >= 3 && BITWIDTH <= 3)
+#define CRITERION_STATICBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <= 64 && BITWIDTH == BASE-1 && BITWIDTH == BASE-1)
 /* 
  * Dynamic Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and maximal bitwidth for datagenerator BITWIDTH
  */
-#define CRITERION_DYNBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 0 && COMPRESSEDBASE == 8 && BITWIDTH >= 3 && BITWIDTH <= 3)
+#define CRITERION_DYNBP(COMPRESSEDBASE, BASE, BITWIDTH)(BASE == 16 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <= 64 && BITWIDTH == BASE - 1 && BITWIDTH == BASE - 1)
 /* 
  * Static FOR with Static Bitpacking with column datatype BASE, Processing Datatype COMPRESSEDBASE and BITWIDTH
  */
@@ -43,7 +43,7 @@ using namespace LCTL;
  */
 #define LOWER_DYNFORBP 0
 #define SCALE_DYNFORBP 1
-#define CRITERION_DYNFORBP(COMPRESSEDBASE, BASE, UPPER) (BASE >= 8 && BASE <= 8 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <= 8 && UPPER - LOWER_DYNFORBP >= 0)
+#define CRITERION_DYNFORBP(COMPRESSEDBASE, BASE, UPPER) (BASE == 0 && BASE <= 8 && COMPRESSEDBASE >= 8 && COMPRESSEDBASE <= 8 && UPPER - LOWER_DYNFORBP >= 0)
 
 /* Forward declarations */
 template <typename, typename, uint64_t, size_t, typename>

@@ -9,7 +9,6 @@
 #define CONVERSION_COLUMNFORMAT_COMPRESS_H
 
 #include "../../transformations/codegeneration/Generator.h"
-#include "../../language/Delta.h"
 #include <header/preprocessor.h>
 #include <header/vector_extension_structs.h>
 
