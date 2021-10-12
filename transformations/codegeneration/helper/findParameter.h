@@ -15,13 +15,13 @@ namespace LCTL {
    * @brief decoding of encoded parameters during the case of decompression,
    *        primary Template is applied, if the parameter is not found.
    * 
-   * @param <node_t>          node in the analyze tree,
+   * @tparam node_t          node in the analyze tree,
    *                          such that the parameter name can be found by
    *                          a recursive search in the combiner 
-   * @param <name>            name of the parameter
-   * @param <bitposition_t>   current bitposition
-   * @param <base_t>          data type of the parameter and of the uncompressed data
-   * @param <parametername_t> parameter names of known parameters
+   * @tparam name            name of the parameter
+   * @tparam bitposition_t   current bitposition
+   * @tparam base_t          data type of the parameter and of the uncompressed data
+   * @tparam parametername_t parameter names of known parameters
    */
   template <
     typename node_t,
@@ -34,8 +34,8 @@ namespace LCTL {
      * @brief    Primary Template is applied, if the parameter is not found.
      *           It writes a warning to cout.
      * 
-     * @param <compressedbase_t> datatype of compressed values
-     * @param <parameters_t>     datatypes of the runtime parameters
+     * @tparam compressedbase_t datatype of compressed values
+     * @tparam parameters_t     datatypes of the runtime parameters
      * @param inBase             current address of memory area with compressed data
      * @param parameters         decoded or calculated runtime parameters 
      * 
@@ -59,16 +59,16 @@ namespace LCTL {
    * This partial specialization is applied, if the searched parameter name
    * is not equal to the first parameter of a concat combiner.
    * 
-   * @param <name_t>          name of the first parameter of the concat combiner
-   * @param <logical_t>       logical value or calculation rule for the parameter
-   * @param <numberOfBits_t>  number of bits belonging to the parameter bitstring
-   * @param <Ts...>           further elementer ofthe concat Combiner List
-   * @param <namesearch_t>    name of the parameter to decode
-   * @param <aligned>         true or false, does not matter
+   * @tparam name_t          name of the first parameter of the concat combiner
+   * @tparam logical_t       logical value or calculation rule for the parameter
+   * @tparam numberOfBits_t  number of bits belonging to the parameter bitstring
+   * @tparam Ts...           further elementer ofthe concat Combiner List
+   * @tparam namesearch_t    name of the parameter to decode
+   * @tparam aligned         true or false, does not matter
    *                          (if after each encoded block the new block starts at a word border -> usage of padding bits or not)
-   * @param <bitposition_t>   current bitposition
-   * @param <base_t>          data type of the parameter and of the uncompressed data
-   * @param <parametername_t> currently parameter names of known parameters
+   * @tparam bitposition_t   current bitposition
+   * @tparam base_t          data type of the parameter and of the uncompressed data
+   * @tparam parametername_t currently parameter names of known parameters
    */
   template<
     typename name_t, 
@@ -97,8 +97,8 @@ namespace LCTL {
        *        Thus, recursive call of findParameter by deletion of the first parameter in the combiner.
        *        Propagation of the current bitposition + the bitwidth of the first parameter
        * 
-       * @param <compressedbase_t> datatype of compressed values
-       * @param <parameters_t>     datatypes of the runtime parameters
+       * @tparam compressedbase_t datatype of compressed values
+       * @tparam parameters_t     datatypes of the runtime parameters
        * @param inBase             current address of memory area with compressed data
        * @param parameters         currently decoded or calculated runtime parameters 
        * 
@@ -126,15 +126,15 @@ namespace LCTL {
    * This partial specialization is applied, if the searched parameter name
    * equals the first parameter of a concat combiner.
    * 
-   * @param <logical_t>       logical value or calculation rule for the parameter
-   * @param <numberOfBits_t>  number of bits belonging to the parameter bitstring
-   * @param <Ts...>           further elementer ofthe concat Combiner List
-   * @param <aligned>         true or false, does not matter
-   * @param <namesearch_t>    name of the parameter to decode
+   * @tparam logical_t       logical value or calculation rule for the parameter
+   * @tparam numberOfBits_t  number of bits belonging to the parameter bitstring
+   * @tparam Ts...           further elementer ofthe concat Combiner List
+   * @tparam aligned         true or false, does not matter
+   * @tparam namesearch_t    name of the parameter to decode
    *                          (if after each encoded block the new block starts at a word border -> usage of padding bits or not)
-   * @param <bitposition_t>   current bitposition
-   * @param <base_t>          data type of the parameter and of the uncompressed data
-   * @param <parametername_t> currently parameter names of known parameters
+   * @tparam bitposition_t   current bitposition
+   * @tparam base_t          data type of the parameter and of the uncompressed data
+   * @tparam parametername_t currently parameter names of known parameters
    */
   template<
     typename logical_t, 
@@ -161,8 +161,8 @@ namespace LCTL {
     /**
      * @brief decoding of encoded value at this point
      * 
-     * @param <compressedbase_t> datatype of compressed values
-     * @param <parameters_t>     datatypes of the runtime parameters
+     * @tparam compressedbase_t datatype of compressed values
+     * @tparam parameters_t     datatypes of the runtime parameters
      * @param inBase             current address of memory area with compressed data
      * @param parameters         currently decoded or calculated runtime parameters 
      * 
@@ -208,16 +208,16 @@ namespace LCTL {
    * Because at this point, we won't find a general combiner, we simply use
    * the combiner deposited in the first case of the switch-case.
    * 
-   * @param <namesearch_t>    name of the parameter to decode
-   * @param <name_t>          name of the first parameter of the concat combiner
-   * @param <logical_t>       logical value or calculation rule for the parameter
-   * @param <numberOfBits_t>  number of bits belonging to the parameter bitstring
-   * @param <first_t>         subtre of the first case
-   * @param <cases_t...>      further cases
+   * @tparam namesearch_t    name of the parameter to decode
+   * @tparam name_t          name of the first parameter of the concat combiner
+   * @tparam logical_t       logical value or calculation rule for the parameter
+   * @tparam numberOfBits_t  number of bits belonging to the parameter bitstring
+   * @tparam first_t         subtre of the first case
+   * @tparam cases_t...      further cases
    *                          (if after each encoded block the new block starts at a word border -> usage of padding bits or not)
-   * @param <bitposition_t>   current bitposition
-   * @param <base_t>          data type of the parameter and of the uncompressed data
-   * @param <parametername_t> currently parameter names of known parameters
+   * @tparam bitposition_t   current bitposition
+   * @tparam base_t          data type of the parameter and of the uncompressed data
+   * @tparam parametername_t currently parameter names of known parameters
    */
   template <
     typename namesearch_t, 
@@ -250,8 +250,8 @@ namespace LCTL {
      * Because at this point, we won't find a general combiner, we simply use
      * the combiner deposited in the first case of the switch-case.
      * 
-     * @param <compressedbase_t> datatype of compressed values
-     * @param <parameters_t>     datatypes of the runtime parameters
+     * @tparam compressedbase_t datatype of compressed values
+     * @tparam parameters_t     datatypes of the runtime parameters
      * @param inBase             current address of memory area with compressed data
      * @param parameters         currently decoded or calculated runtime parameters 
      * 
@@ -277,14 +277,14 @@ namespace LCTL {
    *
    * In an unrolled loop, recursively call the child node
    * 
-   * @param <inputsize_t>     step width of the outer loop
-   * @param <next_t>          child node (Tokenizer)
+   * @tparam inputsize_t     step width of the outer loop
+   * @tparam next_t          child node (Tokenizer)
    * @parm <combiner_t>       combiner of this loop
    * @parm <outercombiner_t>  combiner of outer loop
-   * @param <namesearch_t>    name of the parameter to decode
-   * @param <bitposition_t>   current bitposition
-   * @param <base_t>          data type of the parameter and of the uncompressed data
-   * @param <parametername_t> currently parameter names of known parameters
+   * @tparam namesearch_t    name of the parameter to decode
+   * @tparam bitposition_t   current bitposition
+   * @tparam base_t          data type of the parameter and of the uncompressed data
+   * @tparam parametername_t currently parameter names of known parameters
    */
   template <
     size_t inputsize_t, 
@@ -311,8 +311,8 @@ namespace LCTL {
     /**
      * @brief recursive call of outer combiner, which should contain the parameter
      * 
-     * @param <compressedbase_t> datatype of compressed values
-     * @param <parameters_t>     datatypes of the runtime parameters
+     * @tparam compressedbase_t datatype of compressed values
+     * @tparam parameters_t     datatypes of the runtime parameters
      * @param inBase             current address of memory area with compressed data
      * @param parameters         currently decoded or calculated runtime parameters 
      * 
@@ -338,14 +338,14 @@ namespace LCTL {
    *
    * KnownValueIR is transit node for recursive call
    * 
-   * @param <base_t>          data type of the parameter and of the uncompressed data
-   * @param <name_t>          name of the KnownValueIR parameter
-   * @param <logical_t>       logical value or calculation rule for the parameter
-   * @param <numberOfBits_t>  number of bits belonging to the parameter bitstring
-   * @param <next_t>          child node (Tokenizer)
-   * @param <namesearch_t>    name of the parameter to decode
-   * @param <bitposition_t>   current bitposition
-   * @param <parametername_t> currently parameter names of known parameters
+   * @tparam base_t          data type of the parameter and of the uncompressed data
+   * @tparam name_t          name of the KnownValueIR parameter
+   * @tparam logical_t       logical value or calculation rule for the parameter
+   * @tparam numberOfBits_t  number of bits belonging to the parameter bitstring
+   * @tparam next_t          child node (Tokenizer)
+   * @tparam namesearch_t    name of the parameter to decode
+   * @tparam bitposition_t   current bitposition
+   * @tparam parametername_t currently parameter names of known parameters
    */
   template<
     typename base_t,
@@ -373,8 +373,8 @@ namespace LCTL {
     /**
      * @brief recursive call of child node, which should contain the parameter
      * 
-     * @param <compressedbase_t> datatype of compressed values
-     * @param <parameters_t>     datatypes of the runtime parameters
+     * @tparam compressedbase_t datatype of compressed values
+     * @tparam parameters_t     datatypes of the runtime parameters
      * @param inBase             current address of memory area with compressed data
      * @param parameters         currently decoded or calculated runtime parameters 
      * 
@@ -395,13 +395,13 @@ namespace LCTL {
    * Encoder is transit node for recursive call
    * 
    * 
-   * @param <log_t>           calculation rule for the data
-   * @param <phys_t>          bitwidth of the preprocessed data
-   * @param <comb_t>          inner  combiner
-   * @param <namesearch_t>    name of the parameter to decode
-   * @param <bitposition_t>   current bitposition
-   * @param <base_t>          data type of the parameter and of the uncompressed data
-   * @param <parametername_t> currently parameter names of known parameters
+   * @tparam log_t           calculation rule for the data
+   * @tparam phys_t          bitwidth of the preprocessed data
+   * @tparam comb_t          inner  combiner
+   * @tparam namesearch_t    name of the parameter to decode
+   * @tparam bitposition_t   current bitposition
+   * @tparam base_t          data type of the parameter and of the uncompressed data
+   * @tparam parametername_t currently parameter names of known parameters
    */
   template <
     typename log_t, 
@@ -420,8 +420,8 @@ namespace LCTL {
     /**
      * @brief recursive call of child node (= combiner), which should contain the parameter
      * 
-     * @param <compressedbase_t> datatype of compressed values
-     * @param <parameters_t>     datatypes of the runtime parameters
+     * @tparam compressedbase_t datatype of compressed values
+     * @tparam parameters_t     datatypes of the runtime parameters
      * @param inBase             current address of memory area with compressed data
      * @param parameters         currently decoded or calculated runtime parameters 
      * 

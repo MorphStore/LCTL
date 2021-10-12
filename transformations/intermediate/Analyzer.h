@@ -11,15 +11,10 @@
 #include <cstdint>
 #include "../../language/collate/Concepts.h"
 #include "../../intermediate/procedure/Concepts.h"
-//#include "../lib/arithmetics.h"
-//#include "../lib/aggregation.h"
-//#include "../lib/combiner.h"
-//#include "./functions.h"
-//#include "./Term.h"
-//#include <tuple>
 #include "./LoopAnalyzer.h"
 #include <header/vector_extension_structs.h>
 #include <header/vector_primitives.h>
+#include "../../language/Delta.h"
 
 template<typename... Ts>
 struct List;
@@ -185,9 +180,9 @@ namespace LCTL {
    * @brief creates the intermediate tree. 
    * @TODO Comment is old and has to be rewritten
    * 
-   * @param <base_t>           datatype of uncompressed and decompressed values
-   * @param <loop_t>      outer loop
-   * @param <compressedbase_t> datatype to handle the compressed memory region
+   * @tparam base_t           datatype of uncompressed and decompressed values
+   * @tparam loop_t      outer loop
+   * @tparam compressedbase_t datatype to handle the compressed memory region
    * 
    *  Input for the Analyzer is a Collate-model template tree. 
    *  Output is a tree loosely corresponding to the control flow of
@@ -256,16 +251,16 @@ namespace LCTL {
    */
     
   /* Forward Declaration */
-  template<typename base_t, class loop_t, typename compressedbase_t>
+  template<typename base_t, class loop_t, typename compressedbase_t, Delta delta_t>
   struct ColumnFormat;
     
   /**
    * @brief Analyzer, this is only used in the case that no other specialization mets the condition
    * ("throw an error" if the syntax of the compression format is wrong) 
    * 
-   * @param <collate_t> something, but not a Format
+   * @tparam collate_t something, but not a Format
    */
-  template <class collate_t>
+  template <class node_t>
   struct Analyzer{
     public:
     using transform = FAILURE_ID<100>;
@@ -275,12 +270,12 @@ namespace LCTL {
    * @brief The node is a root node (Format). The first thing we do is to initialize all adaptive parameters.
    * Because they shall not be deleted in each loop pass.
    * 
-   * @param <base_t>      input data type
-   * @param <tokenizer_t> outer tokenizer
-   * @param <pads...>     parameter defintitions
-   * @param <loop_t> inner loop or encoder
-   * @param <combiner_t>  outer combiner
-   * @param <baseout_t>   data type to handle the memory region for the compressed data
+   * @tparam base_t      input data type
+   * @tparam tokenizer_t outer tokenizer
+   * @tparam pads...     parameter defintitions
+   * @tparam loop_t inner loop or encoder
+   * @tparam combiner_t  outer combiner
+   * @tparam baseout_t   data type to handle the memory region for the compressed data
    * 
    * @date: 26.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -291,7 +286,8 @@ namespace LCTL {
     class... pads, 
     class loop_t, 
     class combiner_t, 
-    typename baseout_t
+    typename baseout_t,
+    Delta delta_t
   >
   struct Analyzer<
     ColumnFormat<
@@ -302,7 +298,8 @@ namespace LCTL {
         loop_t, 
         combiner_t
       >, 
-      baseout_t
+      baseout_t,
+      delta_t
     >
   >{
       using transform = ColumnFormatIR<
@@ -323,7 +320,8 @@ namespace LCTL {
           String<decltype("length"_tstr)>,
           /* input length is the first runtme parameter */
           List<String<decltype("length"_tstr)>>
-        >::transform
+        >::transform,
+        delta_t
       >;
   };
 }
