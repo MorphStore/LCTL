@@ -10,7 +10,6 @@
 
 #include "./UnrolledLoop_TokenSize1_WOEncodedParameters_SimpleCombiner_Generator.h"
 #include "../../Definitions.h"
-#include "./MultipleConcatGenerator.h"
 
 
 namespace LCTL {

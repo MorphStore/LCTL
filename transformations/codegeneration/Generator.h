@@ -16,13 +16,11 @@
 #include "../../codegeneration/RightShift.h"
 #include "../../codegeneration/Increment.h"
 #include "../../codegeneration/Write.h"
-//#include "./functions.h"
 #include "./ParameterGenerator.h"
 #include "./RolledLoopGenerator.h"
 #include "./EncoderGenerator.h"
 #include "./UnrolledLoop_Tokensize1_WOEncodedParameters_OuterConcatCombiner_Generator.h"
 #include <header/preprocessor.h>
-#include "../../language/Delta.h"
 
 
 
@@ -57,12 +55,10 @@ namespace LCTL {
    * @tparam processingStyle     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @tparam base_t              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
    * @tparam loop_t              outer loop node in intermediate tree
-   * @tparam delta_t             not relevant at the moment
    * @tparam tokensize_t         tokensize_t should be 0 if not known at compile time, another value otherwise   
    * @tparam bitposition         next value to encode starts at bitposition
    * @tparam parametername_t...  names of runtime parameters
    * 
-   * @todo delta_t shall be used in future times to apply a delta encoding before the compression and a delta decoding after the decompression
    * 
    * @date: 26.05.2021 12:00
    * @author: Juliana Hildebrandt
@@ -72,12 +68,11 @@ namespace LCTL {
     typename loop_t,
     typename base_t,
     size_t tokensize_t,
-    typename... parametername_t,
-    Delta delta_t
+    typename... parametername_t
   >
   struct Generator<
     processingStyle_t, 
-    ColumnFormatIR<loop_t, delta_t>, 
+    ColumnFormatIR<loop_t>, 
     base_t, 
     tokensize_t,
     /* bitposition at the beginning of en- and decoding */
