@@ -12,6 +12,7 @@
 #include "../../Definitions.h"
 #include "./MultipleConcatGenerator.h"
 
+
 namespace LCTL {
   /**
    * @brief Forward Declaration, Generator generates code out of the intermediate tree
