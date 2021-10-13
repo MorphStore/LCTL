@@ -13,7 +13,7 @@
 namespace LCTL {
 
   /* prints intermediate tree during compress-call */
-  #define LCTL_VERBOSETREE true
+  #define LCTL_VERBOSETREE false
   /* do you watn a lot of information during tests? */
   #define LCTL_VERBOSETEST true
   /* prints compression code during compress-call */
