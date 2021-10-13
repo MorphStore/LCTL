@@ -11,80 +11,50 @@
  * Created on 28. September 2020, 13:10
  */
 
-#ifndef VBYTE_H
-#define VBYTE_H
+#ifndef VARINTGB_H
+#define VARINTGB_H
 
-#include "../lib/combiner.h"
-#include "../lib/aggregation.h"
-#include "../lib/literals.h"
+#include "../language/collate/ColumnFormat.h"
+#include "../language/calculation/Concat.h"
 
-using test_base_t = uint64_t;
+using namespace LCTL;
 
-/*template <typename base_t, typename outbase_t = base_t>
-size_t forbp32(uint8_t * & in, size_t size, uint8_t * & out) {
-    using namespace LCTL;
-    typedef
-    Algorithm <
-        base_t,
-        Recursion<
-            StaticTokenizer<32>,
-            ParameterCalculator<
-                ParameterDefinition<String<decltype("min"_tstr)>,Min<Token>, Int<64>>,
-                ParameterDefinition<String<decltype("bitwidth"_tstr)>,Bitwidth<Minus<Max<Token>,Min<Token>>>, Int<64>>
+using varintgb =
+  ColumnFormat<
+    scalar<v8<uint8_t>>,
+    Loop<
+      StaticTokenizer<4>,
+      ParameterCalculator<>,
+      Loop<
+        StaticTokenizer<1>,
+        ParameterCalculator<
+          ParameterDefinition<
+            String<decltype("bitwidth"_tstr)>,
+            Times<Div<Plus<Bitwidth<Token>, Size<7>>, Size<8>>, Size<8>>, /* bw 1..8 -> 8, bw 9..15 -> 16, bw 16..24 -> 24, bw 25..32 -> 32 */
+            NIL /* braucht nicht kodiert werden */
+          >,
+          ParameterDefinition<//stores all descriptor bits
+            String<decltype("units"_tstr)>,
+            Minus<
+              Div<String<decltype("bitwidth"_tstr)>, Size<8>>,
+              Size<1>
             >,
-            Recursion<
-                StaticTokenizer<1>,
-            ParameterCalculator<>,
-            Encoder<Minus<Token,String<decltype("min"_tstr)>>, String<decltype("bitwidth"_tstr)>>,
-            Combiner<Token, UNALIGNED>
-            >,
-            Combiner<
-                Concat<
-                    String<decltype("min"_tstr)>,
-                    String<decltype("bitwidth"_tstr)>,
-                    Token
-                >, 
-                ALIGNED>
+            Size<2/*bit*/>
+          >
         >,
-        outbase_t
-    > dynamicforbp32;
+        Encoder<Token, String<decltype("bitwidth"_tstr)>>, /* Kodierung mit 8, 16, 24 oder 32 Bits */
+        Combiner<NIL, LCTL_UNALIGNED>
+      >,
+      Combiner<
+        MultipleConcat<
+          String<decltype("units"_tstr)>, 
+          Token
+        >, 
+        LCTL_ALIGNED
+      >
+    >,
+    uint32_t
+  >; 
 
 
-    return dynamicforbp32::apply(in, size, out);
-}
-
-template <typename base_t, typename outbase_t = base_t>
-size_t bp32(uint8_t * & in, size_t size, uint8_t * & out) {
-    using namespace LCTL;
-    typedef
-    Algorithm <
-        base_t,
-        Recursion<
-            StaticTokenizer<32>,
-            ParameterCalculator<
-                ParameterDefinition<String<decltype("bitwidth"_tstr)>,Bitwidth<Max<Token>>, Int<sizeof(outbase_t)*4>>
-            >,
-            Recursion<
-                StaticTokenizer<1>,
-            ParameterCalculator<>,
-            Encoder<Token, String<decltype("bitwidth"_tstr)>>,
-            Combiner<Token, UNALIGNED>
-            >,
-            Combiner<
-                Concat<
-                    String<decltype("bitwidth"_tstr)>,
-                    Token
-                >, 
-                ALIGNED>
-        >,
-        outbase_t
-    > dynamicbp32;
-
-
-    return dynamicbp32::apply(in, size, out);
-}*/
-
-
-
-#endif /* VBYTE_H */
-
+#endif /* VARINTGB_H */
