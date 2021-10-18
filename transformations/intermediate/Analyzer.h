@@ -155,7 +155,6 @@ namespace LCTL {
     typename logicalvalue_t,
     typename numberOfBits_t,
     typename startvalue_t,
-    int levelOfInitializing,
     typename loop_t
   >
   struct InitializeAdaptiveParameters<
@@ -166,8 +165,7 @@ namespace LCTL {
           logicalvalue_t,
           numberOfBits_t
         >, 
-        startvalue_t, 
-        levelOfInitializing // should be deleted
+        startvalue_t
       >, 
       pads...
     >,

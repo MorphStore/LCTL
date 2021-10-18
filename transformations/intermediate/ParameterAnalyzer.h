@@ -119,7 +119,6 @@ namespace LCTL {
     typename logicalValue_t, 
     typename numberOfBits_t, 
     typename startvalue_t,
-    int level_t,
     typename... pads, 
     typename loop_t, 
     typename ... combinerList_t, 
@@ -137,8 +136,7 @@ namespace LCTL {
                   logicalValue_t, 
                   numberOfBits_t
               >,
-          startvalue_t,
-          level_t
+          startvalue_t
           >, 
           pads...
       >, 
@@ -156,7 +154,7 @@ namespace LCTL {
               numberOfBits_t, 
               typename ParameterAnalyzer<
                   base_t, 
-                  level_t, 
+                  level, 
                   ParameterCalculator<pads...>, 
                   loop_t,  
                   List<combinerList_t...>, 

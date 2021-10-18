@@ -36,8 +36,7 @@ ColumnFormat <
           Token,
           Value<size_t,0>
         >,
-        Value<inputDatatype_t,0>,
-        0
+        Value<inputDatatype_t,0>
       >
     >,
     Encoder<

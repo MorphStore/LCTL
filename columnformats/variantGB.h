@@ -30,8 +30,7 @@ using variantgb =
               String<decltype("loop_count"_tstr)> + 1,
               Size<8/*bit*/>
             >,
-            Value<proc_t, 0>,
-            0 /*what influence does this parameter have?*/
+            Value<proc_t, 0>
           >,
           AdaptiveParameterDefinition<
             ParameterDefinition<//stores all descriptor bits
@@ -40,8 +39,7 @@ using variantgb =
                   ((String<decltype("bitwidth"_tstr)> / 8) /*left_shift*/ (String<decltype("loop_count"_tstr)> * 2)),/*i think this calculations could be realized with parameter_arithmethis*/
               Size<8/*bit*/>
             >,
-            Value<proc_t, 0>,
-            0 /*what influence does this parameter have?*/
+            Value<proc_t, 0>
           >,
           ParameterDefinition<//needs to be defined before grouped_bw
             String<decltype("bitwidth"_tstr)>,
