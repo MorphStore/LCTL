@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   Term.h
  * Author: Juliana Hildebrandt
  *
@@ -21,9 +21,9 @@ namespace LCTL {
 
   /* We know nothing about the term */
   template<
-    typename term, 
-    typename valueList_t, 
-    typename base_t, 
+    typename term,
+    typename valueList_t,
+    typename base_t,
     typename runtimeparameternames_t>
   struct Term {
     using replace = term;
@@ -32,47 +32,47 @@ namespace LCTL {
 
   /* term is a known integer value */
   template<
-    typename base_t, 
-    base_t term, 
-    typename runtimeparameternames_t, 
+    typename base_t,
+    base_t term,
+    typename runtimeparameternames_t,
     typename valueList_t>
   struct Term<
-    Value<base_t, term>, 
-    valueList_t, base_t, 
+    Value<base_t, term>,
+    valueList_t, base_t,
     runtimeparameternames_t> {
       using replace = Value<base_t, term>;
   };
 
   /* term y is a bitwidth calculation of term x, we enrich the term x */
   template<
-    typename base_t, 
-    typename term, 
-    typename runtimeparameternames_t, 
+    typename base_t,
+    typename term,
+    typename runtimeparameternames_t,
     typename valueList_t>
   struct Term<
-    Bitwidth<term>, 
-    valueList_t, 
-    base_t, 
+    Bitwidth<term>,
+    valueList_t,
+    base_t,
     runtimeparameternames_t> {
       using replace = Bitwidth<typename Term<term, valueList_t, base_t, runtimeparameternames_t>::replace>;
   };
 
   /* term y is a maximum calculation of term x, we enrich the term y with the tokensize and the term x recursively */
   template<
-    typename term, 
-    typename valueList_t, 
-    typename base_t, 
+    typename term,
+    typename valueList_t,
+    typename base_t,
     typename runtimeparameternames_t>
   struct Term<
-    Max<term>, 
-    valueList_t, 
-    base_t, 
+    Max<term>,
+    valueList_t,
+    base_t,
     runtimeparameternames_t>{
       using replace = MaxIR<
-        typename Term<term, valueList_t, base_t, runtimeparameternames_t>::replace, 
+        typename Term<term, valueList_t, base_t, runtimeparameternames_t>::replace,
         typename Term<
-          String<decltype("tokensize"_tstr)>, 
-          valueList_t, 
+          String<decltype("tokensize"_tstr)>,
+          valueList_t,
           base_t,
           runtimeparameternames_t
         >::replace,
@@ -82,20 +82,20 @@ namespace LCTL {
 
   /* term y is a minimum calculation of term x, we enrich the term y with the tokensize and the term x recursively */
   template<
-    typename term, 
-    typename valueList_t, 
-    typename base_t, 
+    typename term,
+    typename valueList_t,
+    typename base_t,
     typename runtimeparameternames_t>
   struct Term<
-    Min<term>, 
-    valueList_t, 
-    base_t, 
+    Min<term>,
+    valueList_t,
+    base_t,
     runtimeparameternames_t>{
       using replace = MinIR<
-        typename Term<term, valueList_t, base_t, runtimeparameternames_t>::replace, 
+        typename Term<term, valueList_t, base_t, runtimeparameternames_t>::replace,
         typename Term<
-          String<decltype("tokensize"_tstr)>, 
-          valueList_t, 
+          String<decltype("tokensize"_tstr)>,
+          valueList_t,
           base_t,
           runtimeparameternames_t
         >::replace,
@@ -103,16 +103,16 @@ namespace LCTL {
       >;
   };
 
-  /* term is a string/parameter name and the first value in the list of known values matches. 
+  /* term is a string/parameter name and the first value in the list of known values matches.
    * We replace the string by the found value */
   template<
-    char ...term, 
-    typename level, 
-    typename numberOfBits_t, 
-    typename... valuelisttuple_t, 
-    typename base_t, 
-    typename parametertype_t, 
-    parametertype_t 
+    char ...term,
+    typename level,
+    typename numberOfBits_t,
+    typename... valuelisttuple_t,
+    typename base_t,
+    typename parametertype_t,
+    parametertype_t
     value_t,
     typename... runtimeparameternames_t>
   struct Term<
@@ -123,13 +123,13 @@ namespace LCTL {
         std::tuple<
           String<
             std::integer_sequence<char, term...>
-          >, 
-          level, 
-          Value<parametertype_t, value_t>, 
+          >,
+          level,
+          Value<parametertype_t, value_t>,
           numberOfBits_t
         >,
         valuelisttuple_t...
-      >, 
+      >,
       base_t,
       List<runtimeparameternames_t...>> {
       using replace = Value<parametertype_t, value_t>;
@@ -137,12 +137,12 @@ namespace LCTL {
   };
 
   template<
-    char ...term, 
-    typename level, 
-    typename numberOfBits_t, 
-    typename... valuelisttuple_t, 
-    typename base_t, 
-    typename logicalValue_t,  
+    char ...term,
+    typename level,
+    typename numberOfBits_t,
+    typename... valuelisttuple_t,
+    typename base_t,
+    typename logicalValue_t,
     typename... runtimeparameternames_t>
   struct Term<
       String<
@@ -152,13 +152,13 @@ namespace LCTL {
         std::tuple<
           String<
             std::integer_sequence<char, term...>
-          >, 
-          level, 
-          logicalValue_t, 
+          >,
+          level,
+          logicalValue_t,
           numberOfBits_t
         >,
         valuelisttuple_t...
-      >, 
+      >,
       base_t,
       List<runtimeparameternames_t...>
   >{
@@ -176,16 +176,16 @@ namespace LCTL {
     using numberOfBits= numberOfBits_t;
   };
 
-  /* term is a string/parameter name and the first value in the list of known values does NOT match. 
+  /* term is a string/parameter name and the first value in the list of known values does NOT match.
    * We replace the string by the found value */
   template<
-    char... term, 
-    typename... valueList_t, 
-    char... term2, 
-    typename level_t, 
-    typename logicalValue_t, 
+    char... term,
+    typename... valueList_t,
+    char... term2,
+    typename level_t,
+    typename logicalValue_t,
     typename calculation_t,
-    typename runtimeparameternames_t, 
+    typename runtimeparameternames_t,
     typename base_t>
   struct Term<
       String<
@@ -195,29 +195,29 @@ namespace LCTL {
         std::tuple<
           String<
               std::integer_sequence<char,term2...>
-          >, 
-          level_t, 
-          logicalValue_t, 
+          >,
+          level_t,
+          logicalValue_t,
           calculation_t
         >,
-        valueList_t...  
+        valueList_t...
       >,
       base_t,
       runtimeparameternames_t>{
       using replace = typename Term<
-              String<std::integer_sequence<char,term...>>, 
-              List<valueList_t...>, 
-              base_t, 
+              String<std::integer_sequence<char,term...>>,
+              List<valueList_t...>,
+              base_t,
               runtimeparameternames_t>::replace;
       using numberOfBits = typename Term<
-              String<std::integer_sequence<char,term...>>, 
-              List<valueList_t...>, 
-              base_t, 
+              String<std::integer_sequence<char,term...>>,
+              List<valueList_t...>,
+              base_t,
               runtimeparameternames_t>::numberOfBits;
   };
 
   template<
-      char... term1, 
+      char... term1,
       typename term2,
       typename base_t,
       typename runtimeparameternames_t
@@ -226,13 +226,11 @@ namespace LCTL {
       String<
           std::integer_sequence<char,term1...>
       >,
-      term2, 
+      term2,
       base_t,
       runtimeparameternames_t
   >{
-      using replace = String<
-          std::integer_sequence<char,term1...>
-      >;
+      using replace = FAILURE_ID<111>;//String<std::integer_sequence<char,term1...>
       using numberOfBits = FAILURE_ID<1235>;
   };
 
@@ -243,78 +241,159 @@ namespace LCTL {
       using replace = FAILURE_ID<110>;
   };*/
 
+  //Term evaluation for arithmetic operations
 
+  ////TIMES
   template<
-    typename base_t, 
-    base_t U, 
-    base_t T, 
-    typename valueList_t, 
+    typename base_t,
+    base_t U,
+    base_t T,
+    typename valueList_t,
     typename runtimeparameternames_t>
   struct Term<
-    Times<Value<base_t,U>, Value<base_t,T>>, 
-    valueList_t, 
-    base_t, 
+    Times<Value<base_t,U>, Value<base_t,T>>,
+    valueList_t,
+    base_t,
     runtimeparameternames_t>{
       using replace = Value<base_t,U*T>;
   };
 
   template<
-    typename U, 
-    typename T, 
-    typename valueList_t, 
-    typename base_t, 
+    typename U,
+    typename T,
+    typename valueList_t,
+    typename base_t,
     typename runtimeparameternames_t>
   struct Term<
-    Times<U, T>, 
-    valueList_t, 
-    base_t, 
+    Times<U, T>,
+    valueList_t,
+    base_t,
     runtimeparameternames_t>{
       using replace = Times<
-          typename Term<U, valueList_t, base_t, runtimeparameternames_t>::replace, 
+          typename Term<U, valueList_t, base_t, runtimeparameternames_t>::replace,
           typename Term<T, valueList_t, base_t, runtimeparameternames_t>::replace
         >;
+  };
+
+  ////MINUS
+  template<
+    typename base_t,
+    base_t U,
+    base_t T,
+    typename valueList_t,
+    typename runtimeparameternames_t>
+  struct Term<
+    Minus<Value<base_t,U>, Value<base_t,T>>,
+    valueList_t,
+    base_t,
+    runtimeparameternames_t>{
+      using replace = Value<base_t,U-T>;
   };
 
   template<
-    typename base_t, 
-    typename U, 
-    typename T, 
-    typename valueList_t, 
+    typename U,
+    typename T,
+    typename valueList_t,
+    typename base_t,
     typename runtimeparameternames_t>
   struct Term<
-    Minus<U, T>, 
-    valueList_t, 
-    base_t, 
+    Minus<U, T>,
+    valueList_t,
+    base_t,
     runtimeparameternames_t>{
       using replace = Minus<
-          typename Term<U, valueList_t, base_t, runtimeparameternames_t>::replace, 
+          typename Term<U, valueList_t, base_t, runtimeparameternames_t>::replace,
+          typename Term<T, valueList_t, base_t, runtimeparameternames_t>::replace
+        >;
+  };
+
+  ////PLUS
+  template<
+    typename base_t,
+    base_t U,
+    base_t T,
+    typename valueList_t,
+    typename runtimeparameternames_t>
+  struct Term<
+    Plus<Value<base_t,U>, Value<base_t,T>>,
+    valueList_t,
+    base_t,
+    runtimeparameternames_t>{
+      using replace = Value<base_t,U+T>;
+  };
+
+  template<
+    typename U,
+    typename T,
+    typename valueList_t,
+    typename base_t,
+    typename runtimeparameternames_t>
+  struct Term<
+    Plus<U, T>,
+    valueList_t,
+    base_t,
+    runtimeparameternames_t>{
+      using replace = Plus<
+          typename Term<U, valueList_t, base_t, runtimeparameternames_t>::replace,
+          typename Term<T, valueList_t, base_t, runtimeparameternames_t>::replace
+        >;
+  };
+
+  ////DIV
+  template<
+    typename base_t,
+    base_t U,
+    base_t T,
+    typename valueList_t,
+    typename runtimeparameternames_t>
+  struct Term<
+    Div<Value<base_t,U>, Value<base_t,T>>,
+    valueList_t,
+    base_t,
+    runtimeparameternames_t>{
+      using replace = Value<base_t,U/T>;
+  };
+
+  template<
+    typename U,
+    typename T,
+    typename valueList_t,
+    typename base_t,
+    typename runtimeparameternames_t>
+  struct Term<
+    Div<U, T>,
+    valueList_t,
+    base_t,
+    runtimeparameternames_t>{
+      using replace = Div<
+          typename Term<U, valueList_t, base_t, runtimeparameternames_t>::replace,
           typename Term<T, valueList_t, base_t, runtimeparameternames_t>::replace
         >;
   };
 
   template <
-    bool aligned, 
-    typename valueList_t, 
-    typename base_t, 
+    bool aligned,
+    typename valueList_t,
+    typename base_t,
     typename runtimeparameternames_t>
   struct Term<
-    Combiner<Token, aligned>, 
-    valueList_t, 
-    base_t, 
+    Combiner<Token, aligned>,
+    valueList_t,
+    base_t,
     runtimeparameternames_t>{
-      using replace = Combiner<Token, aligned>;   
+      using replace = Combiner<Token, aligned>;
   };
 
   template <
-    typename... U, 
-    bool aligned,  
-    typename valueList_t, 
-    typename base_t, 
+    typename... U,
+    bool aligned,
+    typename valueList_t,
+    typename base_t,
     typename runtimeparameternames_t>
   struct Term<
-    Combiner<Concat<U...>, aligned>, 
-    valueList_t, 
-    base_t, 
+    Combiner<Concat<U...>, aligned>,
+    valueList_t,
+    base_t,
     runtimeparameternames_t>{
       using replace = Combiner<
           Concat<
@@ -328,10 +407,9 @@ namespace LCTL {
             >...
           >,
           aligned
-      >;   
+      >;
   };
-    
+
 }
 
 #endif /* LCTL_TRANSFORMATION_INTERMEDIATE_TERM_H */
-

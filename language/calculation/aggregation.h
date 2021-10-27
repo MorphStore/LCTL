@@ -1,12 +1,12 @@
-/* 
+/*
  * File:   aggregation.h
  * Author: Juliana Hildebrandt
  *
  * Created on 30. September 2020, 16:05
  */
 
-#ifndef LCTL_LANGUAGE_CALCULATION_AGGREGATION_H 
-#define LCTL_LANGUAGE_CALCULATION_AGGREGATION_H 
+#ifndef LCTL_LANGUAGE_CALCULATION_AGGREGATION_H
+#define LCTL_LANGUAGE_CALCULATION_AGGREGATION_H
 
 #include "./literals.h"
 #include "../../Collections.h"
@@ -15,7 +15,7 @@
 #include <header/preprocessor.h>
 
 namespace LCTL {
-    
+
   template <typename T>
   struct Max {};
 
@@ -23,9 +23,9 @@ namespace LCTL {
   struct Bitwidth {
     template<typename base_t, typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
-      const base_t * & inBase, 
-      const size_t tokensize, 
-      std::tuple<parameters_t...> parameter ) 
+      const base_t * & inBase,
+      const size_t tokensize,
+      std::tuple<parameters_t...> parameter )
     {
 #       if  LCTL_VERBOSECODE
           std::cout << "32 - __builtin_clz(";
@@ -39,9 +39,9 @@ namespace LCTL {
 
       template<typename... parameters_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static const uint32_t apply(
-        const uint32_t * & inBase, 
-        const size_t tokensize, 
-        std::tuple<parameters_t...> parameter ) 
+        const uint32_t * & inBase,
+        const size_t tokensize,
+        std::tuple<parameters_t...> parameter )
       {
 #         if LCTL_VERBOSECODE
             std::cout << "32 - __builtin_clz(";
@@ -55,9 +55,9 @@ namespace LCTL {
 
       template<typename... parameters_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static const uint64_t apply(
-        const uint64_t * & inBase, 
-        const size_t tokensize, 
-        std::tuple<parameters_t...> parameter ) 
+        const uint64_t * & inBase,
+        const size_t tokensize,
+        std::tuple<parameters_t...> parameter )
       {
 #         if LCTL_VERBOSECODE
             std::cout << "64 - __builtin_clzl(";
@@ -71,20 +71,20 @@ namespace LCTL {
 
       template<typename base_t, typename... parameters_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
-        const base_t inBase, 
-        const size_t tokensize, 
-        std::tuple<parameters_t...> parameter) 
+        const base_t inBase,
+        const size_t tokensize,
+        std::tuple<parameters_t...> parameter)
       {
           base_t ret = 32 - __builtin_clz(T::apply(inBase, tokensize,parameter));
           return ret;
       }
 
       template<typename... parameters_t>
-      MSV_CXX_ATTRIBUTE_FORCE_INLINE static 
+      MSV_CXX_ATTRIBUTE_FORCE_INLINE static
       uint32_t apply(
-        const uint32_t inBase, 
-        const size_t tokensize, 
-        std::tuple<parameters_t...> parameter) 
+        const uint32_t inBase,
+        const size_t tokensize,
+        std::tuple<parameters_t...> parameter)
       {
           const uint32_t ret = 32 - __builtin_clz(T::apply(inBase, tokensize,parameter));
           return ret;
@@ -92,9 +92,9 @@ namespace LCTL {
 
       template<typename... parameters_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static const uint64_t apply(
-        const uint64_t inBase, 
-        const size_t tokensize, 
-        std::tuple<parameters_t...> parameter) 
+        const uint64_t inBase,
+        const size_t tokensize,
+        std::tuple<parameters_t...> parameter)
       {
           const uint64_t ret = 64 - __builtin_clzl(T::apply(inBase, tokensize,parameter));
           return ret;
@@ -109,18 +109,18 @@ namespace LCTL {
   >
   struct Bitwidth<
     MaxIR<
-      Token, 
-      Value<size_t, tokensize_t>, 
-      base_t, 
+      Token,
+      Value<size_t, tokensize_t>,
+      base_t,
       parameternamesmax_t
-    >, 
+    >,
     parameternames_t> {
-    
+
       template<typename... parameters_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
-        const base_t * & inBase, 
-        const size_t tokensize, 
-        std::tuple<parameters_t...> parameter) 
+        const base_t * & inBase,
+        const size_t tokensize,
+        std::tuple<parameters_t...> parameter)
       {
           base_t orLoop = 0;
           for (size_t i = 0; i < tokensize_t; i++)
@@ -143,19 +143,19 @@ namespace LCTL {
   >
   struct Bitwidth<
     MaxIR<
-      Token, 
-      Value<size_t, tokensize_t>, 
-      uint64_t, 
+      Token,
+      Value<size_t, tokensize_t>,
+      uint64_t,
       parameternamesmax_t
-    >, 
+    >,
     parameternames_t
   > {
       template<typename... parameters_t>
-      MSV_CXX_ATTRIBUTE_FORCE_INLINE static const 
+      MSV_CXX_ATTRIBUTE_FORCE_INLINE static const
       uint64_t apply(
-        const uint64_t * & inBase, 
-        const size_t tokensize, 
-        std::tuple<parameters_t...> parameter) 
+        const uint64_t * & inBase,
+        const size_t tokensize,
+        std::tuple<parameters_t...> parameter)
       {
           uint64_t orLoop = 0;
           for (size_t i = 0; i < tokensize_t; i++)
@@ -170,16 +170,16 @@ namespace LCTL {
           return ret;
       }
   };
-  
+
   template <>//TODO implement for base_t and uint64_t
   struct Bitwidth<Token>
-  {   
+  {
       template<typename... parameters_t>
-      MSV_CXX_ATTRIBUTE_FORCE_INLINE static const 
+      MSV_CXX_ATTRIBUTE_FORCE_INLINE static const
       uint32_t apply(
-        const uint32_t * & inBase, 
-        const size_t tokensize, 
-        std::tuple<parameters_t...> parameter) 
+        const uint32_t * & inBase,
+        const size_t tokensize,
+        std::tuple<parameters_t...> parameter)
         {
           const uint32_t ret = 32 - __builtin_clz(*inBase);
 #if       LCTL_VERBOSECODE
@@ -197,6 +197,9 @@ namespace LCTL {
 
   template <typename T>
   struct Sum {};
+
+  template <typename T>
+  struct Count {};
 
   template <typename T>
   using BITWIDTH = Bitwidth<T>;
@@ -218,6 +221,9 @@ namespace LCTL {
   using SUM = Sum<T>;
   template <typename T>
   using sum = Sum<T>;
+  template <typename T>
+  using cnt = Count<T>;
+  template <typename T>
+  using COUNT = Count<T>;
 }
 #endif /* LCTL_LANGUAGE_CALCULATION_AGGREGATION_H */
-

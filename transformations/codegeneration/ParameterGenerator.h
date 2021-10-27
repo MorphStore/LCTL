@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   ParameterGenerator.h
  * Author: Juliana Hildebrandt
  *
@@ -16,24 +16,24 @@
 #include "helper/parameterList.h"
 
 namespace LCTL {
-    
+
   /**
    * @brief Generator generates code out of the intermediate tree
-   * 
+   *
    * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @param <base_t>              datatype of input column; is in scalar cases maybe not the same as base_t in processingStyle
    * @param <node_t>                      node in intermediate tree
-   * @param <tokensize_t>                 tokensize_t should be 0 if not known at compile time, another value otherwise   
+   * @param <tokensize_t>                 tokensize_t should be 0 if not known at compile time, another value otherwise
    * @param <bitposition>                 next value to encode starts at bitposition
    * @param <parametername_t...>          names of runtime parameters
-   * 
+   *
    * @date: 26.05.2021 12:00
    * @author: Juliana Hildebrandt
    */
   template<
-    typename processingStyle_t, 
-    typename node_t, 
-    typename base_t, 
+    typename processingStyle_t,
+    typename node_t,
+    typename base_t,
     size_t tokensize_t,
     size_t bitposition,
     typename... parametername_t
@@ -42,30 +42,30 @@ namespace LCTL {
   /**
    * Calculation of an parameter. Tokensize known at compile-time. Value is determined at run time.
    * Here we have a Switch Value. That menas, that after the runtome calculation a run time case distinction follows
-   * 
+   *
    * @param <processingStyle>     TVL Processing Style, contains also datatype to handle the memory region of compressed and decompressed values
    * @param <name_t>              name of the switch value parameter
    * @param <>
-   * 
+   *
    */
   template<
-    typename processingStyle_t, 
-    typename name_t, 
-    typename logicalValue_t, 
-    size_t numberOfBits_t, 
+    typename processingStyle_t,
+    typename name_t,
+    typename logicalValue_t,
+    size_t numberOfBits_t,
     typename first_t,
-    typename... next_t, 
-    typename base_t, 
-    size_t inputsize_t, 
+    typename... next_t,
+    typename base_t,
+    size_t inputsize_t,
     size_t bitposition,
     typename... parametername_t
   >
   struct Generator<
       /* base for uncompressed values */
-      processingStyle_t, 
+      processingStyle_t,
       SwitchValueIR<
-          name_t, 
-          logicalValue_t, 
+          name_t,
+          logicalValue_t,
           /* value is encoded with a fix length . TODO: SwitchValue is not en/decoded, but calculated dependent from other values */
           Value<size_t,numberOfBits_t>,
           /* List of known values*/
@@ -81,8 +81,8 @@ namespace LCTL {
 
       template <typename... parameter_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
-          const base_t * & inBase, 
-          size_t tokensize, 
+          const base_t * & inBase,
+          size_t tokensize,
           compressedbase_t * & outBase,
           std::tuple<parameter_t...> parametertuple
       ) {
@@ -95,38 +95,38 @@ namespace LCTL {
           base_t* parameterptr = &parameter;
 #if LCTL_VERBOSECOMPRESSIONCODE
           std::cout << "; // Switchvalue\n";
-#endif           
+#endif
           Generator<
-              processingStyle_t, 
+              processingStyle_t,
               List<first_t, next_t...>,
-              base_t, 
-              inputsize_t, 
+              base_t,
+              inputsize_t,
               bitposition,
               parametername_t...,
               name_t
           >::compress(
-                  inBase, 
-                  tokensize, 
-                  outBase, 
+                  inBase,
+                  tokensize,
+                  outBase,
                   std::tuple_cat(parametertuple, std::make_tuple(parameterptr))
           );
           return;
-      }   
+      }
 
       template <typename... parameter_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
           /* compressed data */
-          const compressedbase_t * & inBase, 
-          size_t tokensize, 
+          const compressedbase_t * & inBase,
+          size_t tokensize,
           /* uncompressed data */
           base_t * & outBase,
           std::tuple<parameter_t...> parametertuple
       ) {
           // TODO Decoding of Parameters
           base_t parameter = findParameter<
-                  first_t, 
-                  name_t, 
-                  bitposition, 
+                  first_t,
+                  name_t,
+                  bitposition,
                   base_t
               >::decode(inBase, parametertuple);
           base_t* parameterptr = &parameter;
@@ -135,17 +135,17 @@ namespace LCTL {
           std::cout << "  "<< typeString.at(*typeid(base_t).name()) << " " << g << " = "<< (uint64_t) parameter << "; // Switchvalue\n";
 #endif
           Generator<
-              processingStyle_t, 
+              processingStyle_t,
               List<first_t, next_t...>,
-              base_t, 
-              inputsize_t, 
+              base_t,
+              inputsize_t,
               (bitposition + numberOfBits_t)%(sizeof(compressedbase_t)*8),
               parametername_t...,
               name_t
           >::decompress(
-                  inBase, 
-                  tokensize, 
-                  outBase, 
+                  inBase,
+                  tokensize,
+                  outBase,
                   std::tuple_cat(parametertuple, std::make_tuple(parameterptr))
           );
           return;
@@ -154,19 +154,19 @@ namespace LCTL {
 
   /**
    * Before, a Parameter was calculated. Its value is not known at compile time, but we know a set of possible values at compiletime.
-   * Tokensize known at compile-time. 
+   * Tokensize known at compile-time.
    */
   template<
-      typename processingStyle_t, 
+      typename processingStyle_t,
       typename first,
-      typename... knownvalues_t, 
-      typename base_t, 
-      size_t inputsize_t, 
+      typename... knownvalues_t,
+      typename base_t,
+      size_t inputsize_t,
       size_t bitposition,
       typename... parametername_t
   >
   struct Generator<
-      processingStyle_t, 
+      processingStyle_t,
       List< first, knownvalues_t...>,
       base_t,
       inputsize_t,
@@ -178,30 +178,30 @@ namespace LCTL {
       template <typename... parameter_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
           /* compressed data */
-          const base_t * & inBase, 
-          const size_t tokensize, 
+          const base_t * & inBase,
+          const size_t tokensize,
           /* decompressed data */
           compressedbase_t * & outBase,
           std::tuple<parameter_t...> parameter
       ) {
           /* I read, that this could make a Hashtable like a switch case */
-          /* For reasons of simplicity, we need no "first", because in this case the parameter (bitwidth) is zero and there is nothing to encode */  
-          std::initializer_list<int> ({(( *(std::get<std::tuple_size< std::tuple<parameter_t...>>::value -1>(parameter)) == knownvalues_t::value) ?                  
+          /* For reasons of simplicity, we need no "first", because in this case the parameter (bitwidth) is zero and there is nothing to encode */
+          std::initializer_list<int> ({(( *(std::get<std::tuple_size< std::tuple<parameter_t...>>::value -1>(parameter)) == knownvalues_t::value) ?
                   (Generator<
-                  processingStyle_t, 
+                  processingStyle_t,
                   typename knownvalues_t::next,
-                  base_t, 
-                  inputsize_t, 
+                  base_t,
+                  inputsize_t,
                   bitposition,
                   parametername_t...
               >::compress(inBase, tokensize, outBase, parameter)),0 : 0)...});
           return;
-      } 
+      }
 
       template <typename... parameter_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
           /* compressed data */
-          const compressedbase_t * & inBase, 
+          const compressedbase_t * & inBase,
           const size_t tokensize,
           /* decompressed data */
           base_t * & outBase,
@@ -210,14 +210,14 @@ namespace LCTL {
           /* I read, that this could make a Hashtable like a switch case */
 #if LCTL_VERBOSEDECOMPRESSIONCODE
           std::cout << "// Decompress SwitchValue List\n";
-#endif 
+#endif
           std::initializer_list<int> ({(*(std::get<std::tuple_size< std::tuple<parameter_t...>>::value -1>(parameter)) == knownvalues_t::value ?
               (
                   Generator<
-                  processingStyle_t, 
+                  processingStyle_t,
                   typename knownvalues_t::next,
-                  base_t, 
-                  inputsize_t, 
+                  base_t,
+                  inputsize_t,
                   bitposition,
                   parametername_t...
               >::decompress(inBase, tokensize, outBase, parameter)),0 : 0)...});
@@ -227,23 +227,23 @@ namespace LCTL {
 
   /* Adaptive Value */
   template<
-      typename processingStyle_t, 
-      typename name_t, 
-      typename logicalValue_t, 
-      size_t numberOfBits_t, 
-      typename next_t, 
-      typename base_t, 
+      typename processingStyle_t,
+      typename name_t,
+      typename logicalValue_t,
+      size_t numberOfBits_t,
+      typename next_t,
+      typename base_t,
       size_t inputsize_t,
       size_t bitposition,
       typename... parametername_t
   >
   struct Generator<
-      processingStyle_t, 
+      processingStyle_t,
       AdaptiveValueIR<
           UnknownValueIR<
-              name_t, 
-              logicalValue_t, 
-              Value<size_t, numberOfBits_t>, 
+              name_t,
+              logicalValue_t,
+              Value<size_t, numberOfBits_t>,
               next_t
           >
       >,
@@ -257,8 +257,8 @@ namespace LCTL {
       template <typename... parameter_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
           /* uncompressed values */
-          const base_t * & inBase, 
-          const size_t tokensize, 
+          const base_t * & inBase,
+          const size_t tokensize,
           /* compressed values */
           compressedbase_t * & outBase,
           std::tuple<parameter_t...> parameters
@@ -275,17 +275,17 @@ namespace LCTL {
           // Update in parameterlist
           parameters = parameterList<name_t, 0, parametername_t...>::replace(&parameter, parameters);
           Generator<
-              processingStyle_t, 
+              processingStyle_t,
               next_t,
-              base_t, 
-              inputsize_t, 
+              base_t,
+              inputsize_t,
               bitposition,
               parametername_t...,
               name_t
           >::compress(
-                  inBase, 
-                  tokensize, 
-                  outBase, 
+                  inBase,
+                  tokensize,
+                  outBase,
                   parameters
               );
           return;
@@ -294,8 +294,8 @@ namespace LCTL {
       template <typename... parameter_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
           /* uncompressed values */
-          const compressedbase_t * & inBase, 
-          const size_t tokensize, 
+          const compressedbase_t * & inBase,
+          const size_t tokensize,
           /* compressed values */
           base_t * & outBase,
           std::tuple<parameter_t...> parameters
@@ -304,17 +304,17 @@ namespace LCTL {
           const base_t * castOutBase = (const base_t*) (outBase);
           // Decompression of the data
           Generator<
-              processingStyle_t, 
+              processingStyle_t,
               next_t,
-              base_t, 
-              inputsize_t, 
+              base_t,
+              inputsize_t,
               bitposition,
               parametername_t...,
               name_t
           >::decompress(
-                  inBase, 
-                  tokensize, 
-                  outBase, 
+                  inBase,
+                  tokensize,
+                  outBase,
                   parameters
               );
 
@@ -324,8 +324,8 @@ namespace LCTL {
 #endif
           // TODO is not necessarrily base_t, might be size_t for tokensize
           // calcuklation of the adaptive parameters
-          base_t parameter = numberOfBits_t > 0 
-                  ? findParameter<next_t, name_t, bitposition, base_t, parametername_t...>::decode(inBase,parameters) 
+          base_t parameter = numberOfBits_t > 0
+                  ? findParameter<next_t, name_t, bitposition, base_t, parametername_t...>::decode(inBase,parameters)
                   : logicalValue_t::inverse::apply(castOutBase , tokensize, parameters);
           // Update in parameterlist
           parameters = parameterList<name_t, 0, parametername_t...>::replace(&parameter, parameters);
@@ -334,27 +334,27 @@ namespace LCTL {
           std::cout << "  // Tuplesize " << sizeof...(parameter_t) << "\n";
 #endif
           return;
-      }  
+      }
   };
 
   /* Unknown Value (can be everything i.e. Minimum Calculation, Sum, Avg, Multiplication etc.) */
   template<
-      typename processingStyle_t, 
-      typename name, 
-      typename logicalValue_t, 
-      size_t numberOfBits_t, 
-      typename next_t, 
-      typename base_t, 
+      typename processingStyle_t,
+      typename name,
+      typename logicalValue_t,
+      size_t numberOfBits_t,
+      typename next_t,
+      typename base_t,
       size_t inputsize_t,
       size_t bitposition,
       typename... parametername_t
   >
   struct Generator<
-      processingStyle_t, 
+      processingStyle_t,
       UnknownValueIR<
           name, // String
-          logicalValue_t, 
-          Value<size_t, numberOfBits_t>, 
+          logicalValue_t,
+          Value<size_t, numberOfBits_t>,
           next_t
       >,
       base_t,
@@ -367,8 +367,8 @@ namespace LCTL {
       template <typename... parameter_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void compress(
           /* uncompressed values */
-          const base_t * & inBase, 
-          const size_t tokensize, 
+          const base_t * & inBase,
+          const size_t tokensize,
           /* compressed values */
           compressedbase_t * & outBase,
           std::tuple<parameter_t...> parameters
@@ -383,17 +383,17 @@ namespace LCTL {
           std::cout << "; // UnknownValue\n";
 #endif
           Generator<
-              processingStyle_t, 
+              processingStyle_t,
               next_t,
-              base_t, 
-              inputsize_t, 
+              base_t,
+              inputsize_t,
               bitposition,
               parametername_t...,
               name
           >::compress(
-                  inBase, 
-                  tokensize, 
-                  outBase, 
+                  inBase,
+                  tokensize,
+                  outBase,
                   std::tuple_cat(
                       parameters,
                       std::make_tuple(&parameter)
@@ -406,8 +406,8 @@ namespace LCTL {
       template <typename... parameter_t>
       MSV_CXX_ATTRIBUTE_FORCE_INLINE static void decompress(
           /* uncompressed values */
-          const compressedbase_t * & inBase, 
-          const size_t tokensize, 
+          const compressedbase_t * & inBase,
+          const size_t tokensize,
           /* compressed values */
           base_t * & outBase,
           std::tuple<parameter_t...> parameters
@@ -418,7 +418,7 @@ namespace LCTL {
 #endif
           // TODO is not necessarrily base_t, might be size_t for tokensize
           // If physical value has a bitwidth > 0, try to find it,
-          // if physical value has a bitwidth == 0, only calculate the inverse of the logical operation 
+          // if physical value has a bitwidth == 0, only calculate the inverse of the logical operation
           base_t parameter = (base_t)((numberOfBits_t > 0)
               ? findParameter<next_t, name, bitposition, base_t, parametername_t...>::decode(inBase,parameters)
               : logicalValue_t::inverse::apply(inBase, tokensize, parameters));
@@ -427,27 +427,26 @@ namespace LCTL {
           std::cout << "  // Tuplesize " << sizeof...(parameter_t)+ 1 << "\n";
 #endif
           Generator<
-              processingStyle_t, 
+              processingStyle_t,
               next_t,
-              base_t, 
-              inputsize_t, 
+              base_t,
+              inputsize_t,
               bitposition,
               parametername_t...,
               name
           >::decompress(
-                  inBase, 
-                  tokensize, 
-                  outBase, 
+                  inBase,
+                  tokensize,
+                  outBase,
                   std::tuple_cat(
                       parameters,
                       std::make_tuple(&parameter)
                   )
               );
           return;
-      }  
+      }
   };
-    
+
 }
 
 #endif /* LCTL_TRANSFORMATIONS_CODEGENERATION_PARAMETERGENERATOR_H */
-

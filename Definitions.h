@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   Definitions.h
  * Author: Juliana Hildebrandt
  *
@@ -24,14 +24,14 @@
 #define LCTL_RESET_COLOR   "\033[0m"
 #define LCTL_WARNING_TEXT "  Warning "
 #define LCTL_WARNING LCTL_WARNING_COLOR LCTL_WARNING_TEXT LCTL_RESET_COLOR
-/* 
- * don't change: at some points it's not clear, if this is compression or decompression. 
+/*
+ * don't change: at some points it's not clear, if this is compression or decompression.
  * So, this constant contains the value of VERBOSECOMPRESSIONCODE or VERBOSEDECOMPRESSIONCODE
  */
 #define LCTL_VERBOSECODE LCTL_VERBOSECOMPRESSIONCODE
 /*
- * dont' change; concerning the combiner: 
- * shall a new data block start aligned to a processorword (in future: a vector register) 
+ * dont' change; concerning the combiner:
+ * shall a new data block start aligned to a processorword (in future: a vector register)
  */
 #define LCTL_ALIGNED true
 #define LCTL_UNALIGNED false
@@ -49,19 +49,18 @@
  */
 namespace LCTL {
     std::map<char, std::string> typeString = {
-    {'a', "signed char"}, 
-    {'c', "char"}, 
+    {'a', "signed char"},
+    {'c', "char"},
     {'h', "unsigned char"},
     {'i', "int"},
     {'l', "int64_t"},
-    {'t', "uint16_t"}, 
-    {'j', "uint32_t"}, 
+    {'t', "uint16_t"},
+    {'j', "uint32_t"},
     {'m', "uint64_t"},
     {'f', "float"},
     {'d', "double"},
-    {'e', "long double"}}; 
+    {'e', "long double"}};
 }
 
 
 #endif /* LCTL_DEFINITION_H */
-

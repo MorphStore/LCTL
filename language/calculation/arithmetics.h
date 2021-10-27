@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   arithmetics.h
  * Author: Juliana Hildebrandt
  *
@@ -14,8 +14,8 @@
 #include "aggregation.h"
 #include <header/preprocessor.h>
 
-namespace LCTL {
-    
+namespace LCTL{
+
   template <typename T, typename U>
   struct Plus;
 
@@ -28,8 +28,8 @@ namespace LCTL {
     using inverse = Plus<T,U>;
     template<typename base_t, typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
-      const base_t * inBase, 
-      const size_t tokensize, 
+      const base_t * inBase,
+      const size_t tokensize,
       std::tuple<parameters_t...> parameters)
     {
 #       if LCTL_VERBOSECODE
@@ -46,14 +46,14 @@ namespace LCTL {
         return ret1 - ret2;
       }
   };
-  
+
   template<typename T>
   struct Minus<Token, T> {
     using inverse = Plus<Token,T>;
     template<typename base_t, typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
-      const base_t * inBase, 
-      const size_t tokensize, 
+      const base_t * inBase,
+      const size_t tokensize,
       std::tuple<parameters_t...> parameters )
     {
 #       if LCTL_VERBOSECODE
@@ -72,8 +72,8 @@ namespace LCTL {
     using inverse = Plus<T,Token>;
     template<typename base_t, typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
-      const base_t * inBase, 
-      const size_t tokensize, 
+      const base_t * inBase,
+      const size_t tokensize,
       std::tuple<parameters_t...> parameters)
     {
 #       if LCTL_VERBOSECODE
@@ -87,14 +87,42 @@ namespace LCTL {
       }
   };
 
+  /*
+  PLUS ########################################################################
+  */
+
+  template <typename T, typename U>
+  struct Plus {
+    using inverse = Minus<T,U>;
+    template<typename base_t, typename... parameters_t>
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
+      const base_t * inBase,
+      const size_t tokensize,
+      std::tuple<parameters_t...> parameters)
+    {
+#       if LCTL_VERBOSECODE
+          std::cout << " ( ";
+#       endif
+        const base_t ret1 = T::apply(inBase,tokensize, parameters);
+#       if LCTL_VERBOSECODE
+          std::cout << " + ";
+#       endif
+        const base_t ret2 = U::apply(inBase,tokensize, parameters);
+#       if LCTL_VERBOSECODE
+          std::cout << " ) ";
+#       endif
+        return ret1 + ret2;
+      }
+  };
+
   template<typename T>
   struct Plus<Token, T> {
     using inverse = Minus<Token, T>;
     using values = IntList<>;
     template<typename base_t, typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
-      const base_t * inBase, 
-      const size_t tokensize, 
+      const base_t * inBase,
+      const size_t tokensize,
       std::tuple<parameters_t...> parameters)
     {
 #       if LCTL_VERBOSECODE
@@ -107,22 +135,50 @@ namespace LCTL {
         return ret;
     }
   };
-  
+
   template<typename T>
   struct Plus<T, Token> {
     using inverse = Minus<T, Token>;
     using values = IntList<>;
     template<typename base_t, typename... parameters_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static base_t apply(
-      const base_t * inBase, 
-      const size_t tokensize, 
+      const base_t * inBase,
+      const size_t tokensize,
       std::tuple<parameters_t...> parameters)
     {  return *inBase + T::apply(inBase, tokensize, parameters); }
   };
 
+  /*
+  TIMES ########################################################################
+  */
+  //forward declaration
   template <typename T, typename U>
-  struct Times  {};
-  
+  struct Div;
+
+  template <typename T, typename U>
+  struct Times {
+     using inverse = Div<T,U>;
+    template<typename base_t, typename... parameters_t>
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
+      const base_t * inBase,
+      const size_t tokensize,
+      std::tuple<parameters_t...> parameters)
+    {
+#       if LCTL_VERBOSECODE
+          std::cout << " ( ";
+#       endif
+        const base_t ret1 = T::apply(inBase,tokensize, parameters);
+#       if LCTL_VERBOSECODE
+          std::cout << " * ";
+#       endif
+        const base_t ret2 = U::apply(inBase,tokensize, parameters);
+#       if LCTL_VERBOSECODE
+          std::cout << " ) ";
+#       endif
+        return ret1 * ret2;
+      }
+  };
+
   template<int I>
   struct Times<Token, Int<I>> {
     using values = IntList<>;
@@ -141,8 +197,34 @@ namespace LCTL {
     { return *inBase * I; }
   };
 
+  /*
+  DIV ##########################################################################
+  */
+
   template <typename T, typename U>
-  struct Div  {};
+  struct Div {
+    using inverse = Times<T,U>; //TODO only works properly when T == x*U
+    template<typename base_t, typename... parameters_t>
+    MSV_CXX_ATTRIBUTE_FORCE_INLINE static const base_t apply(
+      const base_t * inBase,
+      const size_t tokensize,
+      std::tuple<parameters_t...> parameters)
+    {
+#       if LCTL_VERBOSECODE
+          std::cout << " ( ";
+#       endif
+        const base_t ret1 = T::apply(inBase,tokensize, parameters);
+#       if LCTL_VERBOSECODE
+          std::cout << " / ";
+#       endif
+        const base_t ret2 = U::apply(inBase,tokensize, parameters);
+#       if LCTL_VERBOSECODE
+          std::cout << " ) ";
+#       endif
+        return ret1 / ret2;
+      }
+  };
+
   template<int I>
   struct Div<Token, Int<I>> {
     using values = IntList<>;
@@ -164,4 +246,3 @@ namespace LCTL {
 }
 
 #endif /* LCTL_LANGUAGE_CALCULATION_ARITHMETICS_H */
-
