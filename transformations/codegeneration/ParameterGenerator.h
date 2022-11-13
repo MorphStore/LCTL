@@ -111,7 +111,7 @@ namespace LCTL {
     {
 #     if LCTL_VERBOSECOMPRESSIONCODE
         std::cout << "// Switch parameter encoding\n";
-        const char * g = name::GetString();
+        const char * g = name_t::GetString();
         std::cout << "  "<< typeString.at(*typeid(base_t).name()) << " " << g << " = ";
 #     endif
       base_t parameter = logicalValue_t::apply(inBase, tokensize, parametertuple);
@@ -466,7 +466,7 @@ namespace LCTL {
 #if LCTL_VERBOSECOMPRESSIONCODE
           std::cout << "; // UnknownValue\n";
 #endif
-          /*Generator<
+          Generator<
               processingStyle_t, 
               next_t,
               base_t, 
@@ -482,7 +482,7 @@ namespace LCTL {
                       parameters,
                       std::make_tuple(&parameter)
                   )
-              );*/
+              );
           return;
       }
 
