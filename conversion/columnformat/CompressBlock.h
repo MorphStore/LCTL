@@ -5,8 +5,8 @@
  * Created on 11. Juni 2021, 14:53
  */
 
-#ifndef CONVERSION_COLUMNFORMAT_COMPRESS_H
-#define CONVERSION_COLUMNFORMAT_COMPRESS_H
+#ifndef CONVERSION_COLUMNFORMAT_COMPRESSBLOCK_H
+#define CONVERSION_COLUMNFORMAT_COMPRESSBLOCK_H
 
 #include "../../transformations/codegeneration/Generator.h"
 #include <header/preprocessor.h>
@@ -15,15 +15,34 @@
 namespace LCTL {
 
   template <typename format>
-  struct Compress{
+  struct CompressBlock{
     
     static constexpr size_t staticTokensize = format::staticTokensize;
     using format_t = format;
-    
+
+    /**
+     * @brief generates the compression code for the intermediate tree
+     * 
+     * @param uncompressedMemoryRegion8 uncompressed input data, castet to uint8_t (single Bytes)
+     * @param countInLog                number of logical data values
+     * @param compressedMemoryRegion8   memory region, where the compressed output is stored. Castet to uin8_t (single Bytes)
+     * @return                          size of the compressed values, number of bytes 
+     * 
+     * @todo                For formats with a single output track in the compression direction, it is 
+     * easy to return the compressed size as the number of used bytes. 
+     * In future there will be SIMD-formats with more than one output track 
+     * (i.e. one for the data, another one for descriptors/control like 
+     * selectors for Simple formats or units for Varint formats).
+     * Here it might be useful to return the size of the descriptor track
+     * We might have more then two output tracks (although at the moment I don't know why we should)
+     * What will we return here and how tp grab the right track?
+     *
+     * @date: 25.05.2021 12:00
+     * @author: Juliana Hildebrandt
+     */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t apply(
-            const uint8_t * uncompressedMemoryRegion8,
-            size_t countInLog,
-            uint8_t * compressedMemoryRegion8) 
+            const uint8_t * &uncompressedMemoryRegion8,
+            uint8_t * &compressedMemoryRegion8) 
     {
       /* The intermediate representation can be printed to the terminal */
 #     if LCTL_VERBOSETREE
@@ -49,8 +68,7 @@ namespace LCTL {
         std::cout << "COMPRESSION CODE:\n";
 #     endif
 #     define LCTL_VERBOSECODE LCTL_VERBOSECOMPRESSIONCODE
-      uint8_t * compressedMemoryRegion8Start = compressedMemoryRegion8;
-      return Generator <
+      uint8_t * currentOutBase = Generator <
         typename format_t::processingStyle_t,
         typename format_t::transform,
         typename format_t::base_t,
@@ -58,16 +76,17 @@ namespace LCTL {
         0 >
         ::compress(
           uncompressedMemoryRegion8,
-          countInLog,
+          staticTokensize,
           compressedMemoryRegion8
-        ) -
-        compressedMemoryRegion8Start;
+        );
+      uncompressedMemoryRegion8 += staticTokensize;
+      compressedMemoryRegion8    = currentOutBase;
+      return currentOutBase -  compressedMemoryRegion8;
 #     undef LCTL_VERBOSECODE
     }
-    
   
   };
 }
 
-#endif /* CONVERSION_COLUMNFORMAT_COMPRESS_H */
+#endif /* CONVERSION_COLUMNFORMAT_COMPRESSBLOCK_H */
 

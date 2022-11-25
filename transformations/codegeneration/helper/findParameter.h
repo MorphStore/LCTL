@@ -9,6 +9,8 @@
 #define LCTL_TRANSFORMATIONS_CODEGENERATION_HELPER_FINDPARAMETER_H
 
 #include "../../../language/calculation/Concat.h"
+#include "../../../language/collate/Concepts.h"
+#include "../../../intermediate/procedure/Concepts.h"
 
 namespace LCTL {
   /**

@@ -110,7 +110,6 @@ namespace LCTL {
         std::cout << "  "<< typeString.at(*typeid(compressedbase_t).name()) << " * & outBase = reinterpret_cast<"<< typeString.at(*typeid(compressedbase_t).name()) << " * & >(out8);\n\n";
 #     endif
       /* loop_t is RolledLoop */
-
       Generator<
         processingStyle_t, 
         loop_t, 
@@ -177,7 +176,7 @@ namespace LCTL {
         /* empty tuple with runtime-calculated parameters */
         std::make_tuple()
       );           
-      return (uint8_t *) outBase;
+      return (uint8_t *) inBase;
     }
   };
   
@@ -284,7 +283,7 @@ namespace LCTL {
         std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
         std::cout << "\tGenerator<processingStyle_t, ColumnFormatIR<loop_t>, base_t, tokensize_t, 0, parametername_t...>::decompress(...)\n";
 #     endif
-      return (uint8_t *) outBase; 
+      return (uint8_t *) inBase; 
     }
   };
     
@@ -401,7 +400,11 @@ namespace LCTL {
 #     endif
       const char * tmp = name_t::GetString();
 #     if LCTL_VERBOSECOMPRESSIONCODE
-        std::cout << "// Write compiletime known parameter value (" << tmp <<") " << (uint64_t) parameter_t << " with " << bitwidthparameter_t << " Bits in outBase.\n";
+        std::cout << "// Write compiletime known parameter value (" 
+                << tmp << ") " 
+                << (uint64_t) parameterval_t 
+                << " with " << bitwidthparameter_t 
+                << " Bits in outBase.\n";
 #     endif
       WriteFix<
         processingStyle_t,
@@ -493,7 +496,7 @@ namespace LCTL {
         (bitposition+bitwidthparameter_t) % (sizeof(compressedbase_t)*8),
         parametername_t...
       >::decompress(inBase, tokensize, outBase, parameters);
-      return (uint8_t *) outBase;
+      return (uint8_t *) inBase;
     }
     
     template <template<typename> class op, bool outputIsDeltaencoded, typename... parameter_t>
@@ -740,7 +743,7 @@ namespace LCTL {
           //(bitposition + bitwidthparameter_t),
           parametername_t...
         >::decompress(inBase, tokensize, outBase, parameters);
-        return (uint8_t *) outBase;
+        return (uint8_t *) inBase;
       }
       
     template <template<typename> class op, bool outputIsDeltaencoded, typename... parameter_t>
@@ -880,7 +883,7 @@ namespace LCTL {
           std::cout << "Generator<processingStyle_t, UnrolledLoopIR<tokensizeOuterLoop_t, KnownTokenizerIR<1,EncoderIR<logicalencoding_t, Value<size_t,bitwidth_t>, Combiner<Token, LCTL_UNALIGNED> >>,Combiner<Token, LCTL_UNALIGNED>,Combiner<Concat<std::tuple<Token,Token,NIL,Value<basev_t,0>>, tail_t...>, LCTL_ALIGNED>>,base_t,inputsize_t,bitposition,parametername_t...>::decompress(...)\n";
 #       endif  
         outBase++;
-        return (uint8_t*) outBase;
+        return (uint8_t*) inBase;
       }
       
       template<typename... parameter_t, template<typename> class op, bool outputIsDeltaencoded>
