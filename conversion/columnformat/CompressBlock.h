@@ -80,8 +80,9 @@ namespace LCTL {
           compressedMemoryRegion8
         );
       uncompressedMemoryRegion8 += staticTokensize;
+      size_t compressedSize =  currentOutBase -  compressedMemoryRegion8;
       compressedMemoryRegion8    = currentOutBase;
-      return currentOutBase -  compressedMemoryRegion8;
+      return compressedSize;
 #     undef LCTL_VERBOSECODE
     }
   
