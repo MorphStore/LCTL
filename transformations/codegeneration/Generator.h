@@ -22,9 +22,8 @@
 #include "./UnrolledLoop_Tokensize1_WOEncodedParameters_OuterConcatCombiner_Generator.h"
 #include <header/preprocessor.h>
 
-
-
 namespace LCTL {
+
     
   /**
    * @brief Generator generates code out of the intermediate tree
@@ -233,6 +232,7 @@ namespace LCTL {
     bitposition,
     parametername_t...>
   {
+
     using compressedbase_t = typename processingStyle_t::base_t;
     /**
      * @brief does nothing
@@ -254,7 +254,7 @@ namespace LCTL {
             size_t tokensize, 
             compressedbase_t * & outBase,
             std::tuple<parameter_t...> parameters)
-    { 
+    {
 #     if LCTL_VERBOSECALLGRAPH
         std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
         std::cout << "\tGenerator<processingStyle_t, ColumnFormatIR<loop_t>, base_t, tokensize_t, 0, parametername_t...>::compress(...)\n";
