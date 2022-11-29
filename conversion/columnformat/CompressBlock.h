@@ -53,10 +53,10 @@ namespace LCTL {
           a = demangled_name_a;
           std::free(demangled_name_a);
         }
-
         eraseAllSubStr(a, "LCTL::");
         std::cout << "ANALYZE TREE\n";
-        printTree(a);
+        std::cout <<a;
+        //printTree(a);
 #     endif
       /* 
        * TODO: it is possible to print the generated code, but you will see
