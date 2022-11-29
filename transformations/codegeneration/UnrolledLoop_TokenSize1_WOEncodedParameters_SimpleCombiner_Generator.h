@@ -195,7 +195,7 @@ namespace LCTL {
 
   /**
    * @brief Unrolled Loop with inner tokensize == 1, 
-   * bitwidth of each  data token is knwon at compiletime,
+   * bitwidth of each  data token is known at compiletime,
    * each one of the two combiners concatenates only tokens without parameters.
    * This specialization is the break of values-writing loop 
    * (all values of the block have been written/read, remainingValuesToWrite_t == 0)
@@ -259,7 +259,7 @@ namespace LCTL {
           //  if (bitposition_t != 0) std::cout << "  outBase ";
 #         //endif
           //  std::cout << "Increase outbase at the end of block " << (bitposition_t != 0? "yes" : "no") << "\n";
-          //Incr<bitposition_t != 0, compressedbase_t, 1>::apply(outBase);  
+          Incr<bitposition_t != 0, compressedbase_t, 1>::apply(outBase);  
           return 0;
       }
 
@@ -275,10 +275,10 @@ namespace LCTL {
     template <typename... parameter_t>
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static size_t decompress(
       /* compressed data */
-      const compressedbase_t * & outBase, 
+      const compressedbase_t * & inBase, 
       const size_t tokensize, 
       /* decompressed data */
-      base_t * & inBase,
+      base_t * & outBase,
       /* parameters calculated at runtime*/
       std::tuple<parameter_t...> parameters
     ) {
@@ -286,7 +286,8 @@ namespace LCTL {
           std::cout << "// Decompress Unrolled Loop 2\n";
           if (bitposition_t != 0) std::cout << "  inBase ";
 #       endif
-        Incr<bitposition_t != 0, base_t, 1>::apply(inBase);       
+        Incr<bitposition_t != 0, base_t, 1>::apply(inBase);    
+
         return 0;
     }
   };
