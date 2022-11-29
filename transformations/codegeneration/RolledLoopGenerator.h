@@ -126,6 +126,7 @@ namespace LCTL {
           parametername_t...
         >::compress(inBase, 0, outBase, parameters);
         i += tokensize_t;
+        // alignment of outBase has to be done inside Generator in while-loop if we have Combiner<xy, true>, because here we only know the bitposition before encoding
       }
       i -= tokensize_t;
       // only correct, iff bitposition in outBase == 0
@@ -182,6 +183,7 @@ namespace LCTL {
           parametername_t...
         >::decompress(inBase, 0, outBase, parameters);
         i+= tokensize_t;
+        // alignment of outBase has to be done inside Generator in while-loop if we have Combiner<xy, true>, because here we only know the bitposition before encoding
       }
       // only correct, iff bitposition in inBase == 0
       std::memcpy(outBase, inBase, sizeof(base_t)*(countInLog%tokensize_t) );
