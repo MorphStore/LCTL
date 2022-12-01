@@ -93,9 +93,9 @@ namespace LCTL {
      * @author: Juliana Hildebrandt
      */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint8_t * compress(
-            const uint8_t * in8, 
+            const uint8_t * & in8, 
             const size_t countInLog, 
-            uint8_t * out8)
+            uint8_t *  & out8)
     {
 #     if LCTL_VERBOSECALLGRAPH
         std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";
@@ -142,9 +142,9 @@ namespace LCTL {
      * @author: Juliana Hildebrandt
      */
     MSV_CXX_ATTRIBUTE_FORCE_INLINE static uint8_t * decompress(
-            const uint8_t * in8, 
+            const uint8_t * & in8, 
             const size_t countInLog, 
-            uint8_t * out8)
+            uint8_t * & out8)
     {
 #     if LCTL_VERBOSECALLGRAPH
         std::cout << __FILE__ << ", line " << __LINE__ <<  ":\n";

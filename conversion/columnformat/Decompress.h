@@ -53,7 +53,7 @@ namespace LCTL {
 #     endif
 #     define LCTL_VERBOSECODE LCTL_VERBOSEDECOMPRESSIONCODE
       uint8_t * decompressedMemoryRegion8Start = decompressedMemoryRegion8;
-      size_t ret = Generator < 
+      uint8_t * compressedPointer = Generator < 
         typename format_t::processingStyle_t,
         typename format_t::transform, 
         typename format_t::base_t, 
@@ -63,8 +63,8 @@ namespace LCTL {
           compressedMemoryRegion8, 
           countInLog, 
           decompressedMemoryRegion8
-        ) - decompressedMemoryRegion8Start;
-      return ret;
+        );
+      return decompressedMemoryRegion8 - decompressedMemoryRegion8Start;
 #     undef LCTL_VERBOSECODE
     }
   

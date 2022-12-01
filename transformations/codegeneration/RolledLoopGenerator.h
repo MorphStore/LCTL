@@ -115,6 +115,7 @@ namespace LCTL {
         if ( countInLog < tokensize_t) 
           std::cout << LCTL_WARNING << "Amount of data ("<< countInLog << " values) to low for blocksize (" << tokensize_t << ")\n";
 #     endif
+      std::cout << "Rolled inBase1 " << (uint64_t *) inBase << "\n";
       /* Loop Implementation */
       while(i <= countInLog) {
         Generator<
