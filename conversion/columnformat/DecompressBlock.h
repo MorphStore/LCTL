@@ -62,7 +62,6 @@ namespace LCTL {
           staticTokensize,
           decompressedMemoryRegion8
         );
-      decompressedMemoryRegion8 += staticTokensize;
       compressedMemoryRegion8    = currentInBase;
       return staticTokensize;
 #     undef LCTL_VERBOSECODE
