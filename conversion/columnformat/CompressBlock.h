@@ -64,11 +64,12 @@ namespace LCTL {
        * to see where you have a wrong programm flow or wrong calculations
        * This kind of failure search won't be neccessary, if everything else will work in future days ...
        */
+      uint8_t *   compressedMemoryRegion8Start =   compressedMemoryRegion8;
 #     if LCTL_VERBOSECOMPRESSIONCODE
         std::cout << "COMPRESSION CODE:\n";
 #     endif
 #     define LCTL_VERBOSECODE LCTL_VERBOSECOMPRESSIONCODE
-      uint8_t * currentOutBase = Generator <
+      Generator <
         typename format_t::processingStyle_t,
         typename format_t::transform,
         typename format_t::base_t,
@@ -79,9 +80,7 @@ namespace LCTL {
           staticTokensize,
           compressedMemoryRegion8
         );
-      uncompressedMemoryRegion8 += staticTokensize;
-      size_t compressedSize =  currentOutBase -  compressedMemoryRegion8;
-      compressedMemoryRegion8    = currentOutBase;
+      size_t compressedSize =  compressedMemoryRegion8 -  compressedMemoryRegion8Start;
       return compressedSize;
 #     undef LCTL_VERBOSECODE
     }
